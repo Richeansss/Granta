@@ -18,7 +18,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,10 +26,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
@@ -40,6 +39,8 @@ import com.example.granta.ui.theme.GrantaTheme
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -143,101 +144,181 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
+
     @Composable
     fun RectangularOverlay(
         modifier: Modifier = Modifier,
         onRectChanged: (Rect) -> Unit
     ) {
-        var rect by remember { mutableStateOf(Rect(100, 100, 400, 400)) } // Initial size and position of the rectangle
-        var isDragging by remember { mutableStateOf(false) }
-        var startOffsetX by remember { mutableStateOf(0f) }
-        var startOffsetY by remember { mutableStateOf(0f) }
+        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+
+        val rectWidth = 300.dp // Ширина прямоугольника
+        val rectHeight = 200.dp // Высота прямоугольника
+
+        // Рассчитываем начальные координаты для центрирования прямоугольника
+        val initialLeft = (screenWidth - rectWidth) / 2
+        val initialTop = (screenHeight - rectHeight) / 2
+        val initialRight = (screenWidth + rectWidth) / 2
+        val initialBottom = (screenHeight + rectHeight) / 2
+
+        // Используем эти начальные значения
+        var left by remember { mutableStateOf(initialLeft) }
+        var top by remember { mutableStateOf(initialTop) }
+        var right by remember { mutableStateOf(initialRight) }
+        var bottom by remember { mutableStateOf(initialBottom) }
+
+        var isResizing by remember { mutableStateOf(false) }
+        var activeBorder by remember { mutableStateOf<Border?>(null) }
+        var dragStartX by remember { mutableStateOf(0f) }
+        var dragStartY by remember { mutableStateOf(0f) }
+        var originalLeft by remember { mutableStateOf(0.dp) }
+        var originalTop by remember { mutableStateOf(0.dp) }
+        var originalRight by remember { mutableStateOf(0.dp) }
+        var originalBottom by remember { mutableStateOf(0.dp) }
+
+        // Вывод значений до и после округления в консоль для отладки
+        println("initialLeft: $initialLeft, initialTop: $initialTop, initialRight: $initialRight, initialBottom: $initialBottom")
+
+        val roundedLeft = left.value.roundToInt()
+        val roundedTop = top.value.roundToInt()
+        val roundedRight = right.value.roundToInt()
+        val roundedBottom = bottom.value.roundToInt()
+        println("roundedLeft: $roundedLeft, roundedTop: $roundedTop, roundedRight: $roundedRight, roundedBottom: $roundedBottom")
 
         Box(
             modifier = modifier
                 .fillMaxSize()
                 .background(color = Color.Transparent),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center // Центрируем содержимое по центру экрана
         ) {
-            // Rectangle with border
+            val borderThickness = 4.dp
+            val expandedBorderThickness = 24.dp
+
+            // Прямоугольник с толстой границей
             Box(
                 modifier = Modifier
-                    .size(with(LocalDensity.current) { (rect.right - rect.left).toDp() }, with(LocalDensity.current) { (rect.bottom - rect.top).toDp() })
-                    .offset { IntOffset(rect.left, rect.top) }
+                    .size(width = right - left, height = bottom - top)
+                    .offset(x = left, y = top) // Используем смещение для центрирования прямоугольника
                     .background(color = Color.Transparent)
-                    .border(width = 2.dp, color = Color.Black, shape = RoundedCornerShape(8.dp))
+                    .border(width = borderThickness, color = Color.Black, shape = RectangleShape)
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { offset ->
-                                val hitTestResult = with(LocalDensity) {
-                                    rect.contains(offset.x.toInt(), offset.y.toInt())
+                                dragStartX = offset.x
+                                dragStartY = offset.y
+                                originalLeft = left
+                                originalTop = top
+                                originalRight = right
+                                originalBottom = bottom
+                                val x = offset.x
+                                val y = offset.y
+                                val leftBorder = x <= borderThickness.toPx() + expandedBorderThickness.toPx()
+                                val rightBorder = x >= (right - left).toPx() - borderThickness.toPx() - expandedBorderThickness.toPx()
+                                val topBorder = y <= borderThickness.toPx() + expandedBorderThickness.toPx()
+                                val bottomBorder = y >= (bottom - top).toPx() - borderThickness.toPx() - expandedBorderThickness.toPx()
+
+                                activeBorder = when {
+                                    leftBorder && topBorder -> Border.TOP_LEFT
+                                    leftBorder && bottomBorder -> Border.BOTTOM_LEFT
+                                    rightBorder && topBorder -> Border.TOP_RIGHT
+                                    rightBorder && bottomBorder -> Border.BOTTOM_RIGHT
+                                    leftBorder -> Border.LEFT
+                                    rightBorder -> Border.RIGHT
+                                    topBorder -> Border.TOP
+                                    bottomBorder -> Border.BOTTOM
+                                    else -> null
                                 }
-                                if (hitTestResult) {
-                                    isDragging = true
-                                    startOffsetX = offset.x - rect.left
-                                    startOffsetY = offset.y - rect.top
+
+                                if (activeBorder != null) {
+                                    isResizing = true
                                 }
                             },
                             onDragEnd = {
-                                isDragging = false
+                                isResizing = false
+                                activeBorder = null
                             },
                             onDrag = { change, dragAmount ->
-                                if (isDragging) {
-                                    rect = Rect(
-                                        (change.position.x - startOffsetX).toInt().coerceIn(0, (size.width - rect.width()).toInt()),
-                                        (change.position.y - startOffsetY).toInt().coerceIn(0, (size.height - rect.height()).toInt()),
-                                        (change.position.x - startOffsetX + rect.width()).toInt().coerceIn(rect.width(), size.width.toInt()),
-                                        (change.position.y - startOffsetY + rect.height()).toInt().coerceIn(rect.height(), size.height.toInt())
+                                if (isResizing && activeBorder != null) {
+                                    val offsetX = change.position.x - dragStartX
+                                    val offsetY = change.position.y - dragStartY
+
+                                    when (activeBorder) {
+                                        Border.LEFT -> {
+                                            val newRight = right
+                                            val newLeft = (left + offsetX.dp).coerceIn(0.dp, right - rectWidth)
+                                            if (newRight - newLeft >= rectWidth) {
+                                                left = newLeft
+                                            }
+                                        }
+                                        Border.RIGHT -> {
+                                            val newRight = (right + offsetX.dp).coerceIn(left + rectWidth, screenWidth)
+                                            if (newRight - left >= rectWidth) {
+                                                right = newRight
+                                            }
+                                        }
+                                        Border.TOP -> {
+                                            val newBottom = bottom
+                                            val newTop = (top + offsetY.dp).coerceIn(0.dp, bottom - rectHeight)
+                                            if (newBottom - newTop >= rectHeight) {
+                                                top = newTop
+                                            }
+                                        }
+                                        Border.BOTTOM -> {
+                                            val newBottom = (bottom + offsetY.dp).coerceIn(top + rectHeight, screenHeight)
+                                            if (newBottom - top >= rectHeight) {
+                                                bottom = newBottom
+                                            }
+                                        }
+                                        else -> {}
+                                    }
+
+                                    onRectChanged(
+                                        Rect(
+                                            left = left.value.roundToInt(),
+                                            top = top.value.roundToInt(),
+                                            right = right.value.roundToInt(),
+                                            bottom = bottom.value.roundToInt()
+                                        )
                                     )
-                                    onRectChanged(rect)
                                 }
                             }
                         )
                     }
             )
 
-            // Dark overlay outside the rectangle
+            // Темная область за пределами прямоугольника
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(color = Color.Black.copy(alpha = 0.5f))
             )
 
-            // Invisible box to handle dragging for resizing the rectangle
+            // Отображение координат центра экрана
+            Text(
+                text = "Screen Center: (${screenWidth.value / 2}, ${screenHeight.value / 2})",
+                color = Color.White,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                val hitTestResult = with(LocalDensity) {
-                                    !rect.contains(offset.x.toInt(), offset.y.toInt())
-                                }
-                                if (hitTestResult) {
-                                    isDragging = true
-                                    startOffsetX = offset.x - rect.left
-                                    startOffsetY = offset.y - rect.top
-                                }
-                            },
-                            onDragEnd = {
-                                isDragging = false
-                            },
-                            onDrag = { change, dragAmount ->
-                                if (isDragging) {
-                                    rect = Rect(
-                                        rect.left,
-                                        rect.top,
-                                        (change.position.x - startOffsetX).toInt().coerceIn(rect.left + 50, (size.width - rect.left).toInt()),
-                                        (change.position.y - startOffsetY).toInt().coerceIn(rect.top + 50, (size.height - rect.top).toInt())
-                                    )
-                                    onRectChanged(rect)
-                                }
-                            }
-                        )
-                    }
+                    .size(16.dp)
+                    .align(Alignment.Center)
+                    .background(color = Color.Red)
             )
         }
     }
+
+    // Определение сторон границ для изменения размера
+    enum class Border {
+        LEFT, RIGHT, TOP, BOTTOM, TOP_LEFT, BOTTOM_LEFT, TOP_RIGHT, BOTTOM_RIGHT
+    }
+
+    data class Rect(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+
+
 
 
 
