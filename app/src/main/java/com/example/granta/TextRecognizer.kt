@@ -7,9 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.Log
 import android.util.SparseArray
-import com.google.android.gms.vision.Frame
 import com.google.android.gms.vision.text.TextBlock
-import com.google.android.gms.vision.text.TextRecognizer
 import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 import java.io.IOException
@@ -211,17 +209,6 @@ class TextRecognizer(private val context: Context) {
         tessBaseAPI.end()
     }
 
-    fun detectText(bitmap: Bitmap): SparseArray<TextBlock> {
-        val textRecognizer = TextRecognizer.Builder(context).build()
-        if (!textRecognizer.isOperational) {
-            // Handling the case where text detection is not available
-            Log.e("TextRecognition", "Text recognizer dependencies are not yet available.")
-            return SparseArray()
-        }
-
-        val frame = Frame.Builder().setBitmap(bitmap).build()
-        return textRecognizer.detect(frame)
-    }
 
     fun drawTextBounds(bitmap: Bitmap, textBlocks: SparseArray<TextBlock>): Bitmap {
         val paint = Paint()
@@ -280,4 +267,5 @@ class TextRecognizer(private val context: Context) {
             return false
         }
     }
+
 }
