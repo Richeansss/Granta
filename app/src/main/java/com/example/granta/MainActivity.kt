@@ -8,7 +8,6 @@ import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -96,8 +95,10 @@ class MainActivity : AppCompatActivity() {
                                     photoUri = uri
                                     cameraViewModel.setPhotoTaken(false)
                                 },
-                                onRectChanged = { rect ->
+                                onRectChanged = { rect, orientation ->
                                     // Handle the rectangle change if needed
+                                    // Log or use the rect and orientation as needed
+                                    Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
                                 }
                             )
                         }
@@ -156,17 +157,23 @@ class MainActivity : AppCompatActivity() {
     @Composable
     fun RectangularOverlay(
         modifier: Modifier = Modifier,
-        onRectChanged: (android.graphics.Rect) -> Unit
+        onRectChanged: (android.graphics.Rect, String) -> Unit
     ) {
         val configuration = LocalConfiguration.current
 
-// Логирование текущей ориентации перед оператором when
+        // Логирование текущей ориентации перед оператором when
         Log.d("Orientation", "Current orientation rect: ${configuration.orientation}")
 
-// Оператор when для определения ширины и высоты в зависимости от ориентации
+        // Оператор when для определения ширины и высоты в зависимости от ориентации
         val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
             else -> 300.dp to 200.dp
+        }
+
+        val orientationName = when (configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
+            Configuration.ORIENTATION_PORTRAIT -> "Portrait"
+            else -> "Undefined"
         }
 
         Box(
@@ -193,7 +200,15 @@ class MainActivity : AppCompatActivity() {
                     blendMode = BlendMode.Clear
                 )
 
-                onRectChanged(android.graphics.Rect(rectLeft.toPx().toInt(), rectTop.toPx().toInt(), rectRight.toPx().toInt(), rectBottom.toPx().toInt()))
+                onRectChanged(
+                    android.graphics.Rect(
+                        rectLeft.toPx().toInt(),
+                        rectTop.toPx().toInt(),
+                        rectRight.toPx().toInt(),
+                        rectBottom.toPx().toInt()
+                    ),
+                    orientationName
+                )
             }
         }
     }
@@ -202,42 +217,42 @@ class MainActivity : AppCompatActivity() {
     fun ScreenSizeListener(onSizeChanged: (Int, Int, String) -> Unit) {
         val configuration = LocalConfiguration.current
 
-        // Создаем AndroidView, чтобы иметь доступ к представлению ViewTreeObserver
-        AndroidView(factory = { context ->
-            View(context).apply {
-                viewTreeObserver.addOnGlobalLayoutListener {
-                    val orientationName = when (configuration.orientation) {
+        // Используем LaunchedEffect и snapshotFlow для отслеживания изменений конфигурации
+        LaunchedEffect(Unit) {
+            snapshotFlow { configuration }
+                .collect { newConfiguration ->
+                    val orientationName = when (newConfiguration.orientation) {
                         Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
                         Configuration.ORIENTATION_PORTRAIT -> "Portrait"
                         else -> "Undefined"
                     }
                     Log.d("Orientation", "Orientation: $orientationName")
-                    onSizeChanged(configuration.screenWidthDp, configuration.screenHeightDp, orientationName)
-                    Log.d("ScreenSizeListener", "Screen size changed: width=${configuration.screenWidthDp}, height=${configuration.screenHeightDp}, orientation=$orientationName")
+                    onSizeChanged(newConfiguration.screenWidthDp, newConfiguration.screenHeightDp, orientationName)
+                    Log.d("ScreenSizeListener", "Screen size changed: width=${newConfiguration.screenWidthDp}, height=${newConfiguration.screenHeightDp}, orientation=$orientationName")
                 }
-            }
-        })
+        }
     }
 
 
     @Composable
     fun CameraContent(
         onPhotoTaken: (Uri) -> Unit,
-        onRectChanged: (android.graphics.Rect) -> Unit
+        onRectChanged: (android.graphics.Rect, String) -> Unit
     ) {
         val context = LocalContext.current
         val previewView = remember { PreviewView(context) }
 
-        // State to hold the current rectangle coordinates
+        // State to hold the current rectangle coordinates and orientation
         var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
+        var currentOrientation by remember { mutableStateOf("Undefined") }
 
-        // Define a function to handle screen size changes
-        val handleScreenSizeChange: (Int, Int, String) -> Unit = { width, height, orientation ->
-            Log.d("ScreenSizeListener", "Screen size changed: width=$width, height=$height, orientation=$orientation")
+        // Define a function to handle rectangle and orientation changes
+        val handleRectAndOrientationChange: (android.graphics.Rect, String) -> Unit = { rect, orientation ->
+            currentRect = rect
+            currentOrientation = orientation
+            // Log.d("RectAndOrientationListener", "Rect: $rect, Orientation: $orientation")
+            onRectChanged(rect, orientation)
         }
-
-        // Call ScreenSizeListener with the function defined above
-        ScreenSizeListener(handleScreenSizeChange)
 
         LaunchedEffect(Unit) {
             val cameraProvider = ProcessCameraProvider.getInstance(context)
@@ -251,13 +266,12 @@ class MainActivity : AppCompatActivity() {
                 try {
                     cameraProvider.get().unbindAll()
                     cameraProvider.get().bindToLifecycle(
-                        this@MainActivity,
+                        context as LifecycleOwner,
                         cameraSelector,
-                        preview,
-                        imageCapture
+                        preview
                     )
                 } catch (exc: Exception) {
-                    showToast("Error starting camera: ${exc.message}")
+                    Log.e("CameraContent", "Error starting camera: ${exc.message}")
                 }
             }, ContextCompat.getMainExecutor(context))
         }
@@ -268,17 +282,17 @@ class MainActivity : AppCompatActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect ->
-                currentRect = rect // Update the current rectangle coordinates
-                onRectChanged(rect) // Pass the rectangle coordinates to the parent
+            RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect, orientation ->
+                handleRectAndOrientationChange(rect, orientation)
             }
 
             CaptureButton(
-                onClick = { takePhoto(context, onPhotoTaken, currentRect, previewView.display.rotation) },
+                onClick = { takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation) },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }
+
 
     @Composable
     fun CaptureButton(
@@ -293,9 +307,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun takePhoto(context: Context, onPhotoTaken: (Uri) -> Unit, rect: Rect, rotation: Int) {
+    private fun takePhoto(
+        context: Context,
+        onPhotoTaken: (Uri) -> Unit,
+        rect: Rect,
+        orientation: String,
+        rotation: Int
+    ) {
         val photoFile = File(
-            getOutputDirectory(),
+            getOutputDirectory(context),
             SimpleDateFormat(FILENAME_FORMAT, Locale.US)
                 .format(System.currentTimeMillis()) + ".jpg"
         )
@@ -313,25 +333,29 @@ class MainActivity : AppCompatActivity() {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = Uri.fromFile(photoFile)
                     // Crop the image using the provided rectangle
-                    val croppedBitmap = cropImage(Uri.fromFile(photoFile), rect, context)
+                    val croppedBitmap = cropImage(Uri.fromFile(photoFile), rect, context, orientation)
                     // Save the cropped image
                     val croppedFile = saveBitmapToFile(croppedBitmap, context)
                     // Notify the caller about the saved photo URI
                     onPhotoTaken(Uri.fromFile(croppedFile))
-                    showToast("Photo saved: $savedUri")
+                    showToast(context, "Photo saved: $savedUri")
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    showToast("Error saving photo: ${exception.message}")
+                    showToast(context, "Error saving photo: ${exception.message}")
                 }
             }
         )
     }
 
-    private fun cropImage(uri: Uri, rect: Rect, context: Context): Bitmap {
+    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap {
         // Load the original image from URI
         val inputStream = context.contentResolver.openInputStream(uri)
         val originalBitmap = BitmapFactory.decodeStream(inputStream)
+
+        // Log the orientation
+        Log.d("CropImage", "Orientation during crop: $orientation")
+        Log.d("CropImage", "Rect during crop: left=${rect.left}, top=${rect.top}, right=${rect.right}, bottom=${rect.bottom}")
 
         // Calculate the cropping coordinates in the original image
         val left = rect.left * originalBitmap.width / context.resources.displayMetrics.widthPixels
@@ -343,9 +367,10 @@ class MainActivity : AppCompatActivity() {
         return Bitmap.createBitmap(originalBitmap, left, top, right - left, bottom - top)
     }
 
+
     private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
         val photoFile = File(
-            getOutputDirectory(),
+            getOutputDirectory(context),
             SimpleDateFormat(FILENAME_FORMAT, Locale.US)
                 .format(System.currentTimeMillis()) + "_cropped.jpg"
         )
@@ -356,12 +381,15 @@ class MainActivity : AppCompatActivity() {
         return photoFile
     }
 
-    private fun getOutputDirectory(): File {
-        val mediaDir = externalMediaDirs.firstOrNull()?.let {
-            File(it, resources.getString(R.string.app_name)).apply { mkdirs() }
+    private fun getOutputDirectory(context: Context): File {
+        val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
+            File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
         }
-        return if (mediaDir != null && mediaDir.exists())
-            mediaDir else filesDir
+        return if (mediaDir != null && mediaDir.exists()) mediaDir else context.filesDir
+    }
+
+    private fun showToast(context: Context, message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     companion object {
