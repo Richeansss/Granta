@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
@@ -42,9 +43,10 @@ import androidx.lifecycle.LifecycleOwner
 import com.example.granta.ui.theme.GrantaTheme
 import java.io.File
 import java.io.FileOutputStream
+import java.lang.Integer.max
+import java.lang.Integer.min
 import java.text.SimpleDateFormat
 import java.util.*
-
 
 class MainActivity : AppCompatActivity() {
 
@@ -97,7 +99,6 @@ class MainActivity : AppCompatActivity() {
                                 },
                                 onRectChanged = { rect, orientation ->
                                     // Handle the rectangle change if needed
-                                    // Log or use the rect and orientation as needed
                                     Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
                                 }
                             )
@@ -136,16 +137,21 @@ class MainActivity : AppCompatActivity() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
+            val preview = Preview.Builder().build()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     this as LifecycleOwner,
                     cameraSelector,
+                    preview,
                     imageCapture
                 )
             } catch (exc: Exception) {
                 showToast("Error starting camera: ${exc.message}")
+                Log.e("MainActivity", "Error starting camera: ${exc.message}")
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -161,10 +167,8 @@ class MainActivity : AppCompatActivity() {
     ) {
         val configuration = LocalConfiguration.current
 
-        // Логирование текущей ориентации перед оператором when
         Log.d("Orientation", "Current orientation rect: ${configuration.orientation}")
 
-        // Оператор when для определения ширины и высоты в зависимости от ориентации
         val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
             else -> 300.dp to 200.dp
@@ -217,7 +221,6 @@ class MainActivity : AppCompatActivity() {
     fun ScreenSizeListener(onSizeChanged: (Int, Int, String) -> Unit) {
         val configuration = LocalConfiguration.current
 
-        // Используем LaunchedEffect и snapshotFlow для отслеживания изменений конфигурации
         LaunchedEffect(Unit) {
             snapshotFlow { configuration }
                 .collect { newConfiguration ->
@@ -233,7 +236,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
     @Composable
     fun CameraContent(
         onPhotoTaken: (Uri) -> Unit,
@@ -242,15 +244,12 @@ class MainActivity : AppCompatActivity() {
         val context = LocalContext.current
         val previewView = remember { PreviewView(context) }
 
-        // State to hold the current rectangle coordinates and orientation
         var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
         var currentOrientation by remember { mutableStateOf("Undefined") }
 
-        // Define a function to handle rectangle and orientation changes
         val handleRectAndOrientationChange: (android.graphics.Rect, String) -> Unit = { rect, orientation ->
             currentRect = rect
             currentOrientation = orientation
-            // Log.d("RectAndOrientationListener", "Rect: $rect, Orientation: $orientation")
             onRectChanged(rect, orientation)
         }
 
@@ -268,7 +267,8 @@ class MainActivity : AppCompatActivity() {
                     cameraProvider.get().bindToLifecycle(
                         context as LifecycleOwner,
                         cameraSelector,
-                        preview
+                        preview,
+                        imageCapture
                     )
                 } catch (exc: Exception) {
                     Log.e("CameraContent", "Error starting camera: ${exc.message}")
@@ -292,7 +292,6 @@ class MainActivity : AppCompatActivity() {
             )
         }
     }
-
 
     @Composable
     fun CaptureButton(
@@ -332,13 +331,14 @@ class MainActivity : AppCompatActivity() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = Uri.fromFile(photoFile)
-                    // Crop the image using the provided rectangle
                     val croppedBitmap = cropImage(Uri.fromFile(photoFile), rect, context, orientation)
-                    // Save the cropped image
-                    val croppedFile = saveBitmapToFile(croppedBitmap, context)
-                    // Notify the caller about the saved photo URI
-                    onPhotoTaken(Uri.fromFile(croppedFile))
-                    showToast(context, "Photo saved: $savedUri")
+                    if (croppedBitmap != null) {
+                        val croppedFile = saveBitmapToFile(croppedBitmap, context)
+                        onPhotoTaken(Uri.fromFile(croppedFile))
+                        showToast(context, "Photo saved: $savedUri")
+                    } else {
+                        showToast(context, "Error cropping photo: cropped bitmap is null")
+                    }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
@@ -348,23 +348,63 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap {
-        // Load the original image from URI
-        val inputStream = context.contentResolver.openInputStream(uri)
-        val originalBitmap = BitmapFactory.decodeStream(inputStream)
+    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
+        try {
+            // Открыть поток для чтения изображения из URI
+            val inputStream = context.contentResolver.openInputStream(uri)
 
-        // Log the orientation
-        Log.d("CropImage", "Orientation during crop: $orientation")
-        Log.d("CropImage", "Rect during crop: left=${rect.left}, top=${rect.top}, right=${rect.right}, bottom=${rect.bottom}")
+            // Загрузить оригинальное изображение из потока
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
 
-        // Calculate the cropping coordinates in the original image
-        val left = rect.left * originalBitmap.width / context.resources.displayMetrics.widthPixels
-        val top = rect.top * originalBitmap.height / context.resources.displayMetrics.heightPixels
-        val right = rect.right * originalBitmap.width / context.resources.displayMetrics.widthPixels
-        val bottom = rect.bottom * originalBitmap.height / context.resources.displayMetrics.heightPixels
+            // Проверка на null, если оригинальное изображение не удалось загрузить
+            if (originalBitmap == null) {
+                Log.e("CropImage", "Failed to load the original image.")
+                return null
+            }
 
-        // Crop the original image
-        return Bitmap.createBitmap(originalBitmap, left, top, right - left, bottom - top)
+            // Вычисление угла поворота изображения в зависимости от ориентации устройства
+            val rotationAngle = when (orientation) {
+                "Portrait" -> 90f
+                else -> 0f
+            }
+
+            // Создание матрицы для поворота изображения
+            val matrix = Matrix().apply {
+                postRotate(rotationAngle)
+            }
+
+            // Поворот оригинального изображения
+            val rotatedBitmap = Bitmap.createBitmap(
+                originalBitmap,
+                0,
+                0,
+                originalBitmap.width,
+                originalBitmap.height,
+                matrix,
+                true
+            )
+
+            // Преобразование координат прямоугольника с экрана в координаты оригинального изображения
+            val left = (rect.left.toFloat() * rotatedBitmap.width / context.resources.displayMetrics.widthPixels).toInt()
+            val top = (rect.top.toFloat() * rotatedBitmap.height / context.resources.displayMetrics.heightPixels).toInt()
+            val right = (rect.right.toFloat() * rotatedBitmap.width / context.resources.displayMetrics.widthPixels).toInt()
+            val bottom = (rect.bottom.toFloat() * rotatedBitmap.height / context.resources.displayMetrics.heightPixels).toInt()
+
+            // Дополнительные корректировки для более точной обрезки
+            val epsilon = 1 // Допустимое отклонение
+            val correctedLeft = max(0, left - epsilon)
+            val correctedTop = max(0, top - epsilon)
+            val correctedRight = min(rotatedBitmap.width, right + epsilon)
+            val correctedBottom = min(rotatedBitmap.height, bottom + epsilon)
+
+            // Обрезка изображения с учетом преобразованных и скорректированных координат прямоугольника
+            val croppedBitmap = Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
+
+            return croppedBitmap
+        } catch (e: Exception) {
+            Log.e("CropImage", "Error cropping image: ${e.message}")
+            return null
+        }
     }
 
 
