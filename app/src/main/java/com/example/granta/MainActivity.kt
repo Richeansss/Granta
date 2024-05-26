@@ -294,7 +294,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private  fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
+    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
         return try {
             val inputStream = context.contentResolver.openInputStream(uri)
             val originalBitmap = BitmapFactory.decodeStream(inputStream)
@@ -327,22 +327,10 @@ class MainActivity : AppCompatActivity() {
             val screenWidth = context.resources.displayMetrics.widthPixels
             val screenHeight = context.resources.displayMetrics.heightPixels
 
-            val left: Int
-            val right: Int
-            val top: Int
-            val bottom: Int
-
-            if (orientation == "Portrait") {
-                left = (rect.left.toFloat() * rotatedBitmap.width / screenWidth).toInt()
-                top = (rect.top.toFloat() * rotatedBitmap.height / screenHeight).toInt()
-                right = (rect.right.toFloat() * rotatedBitmap.width / screenWidth).toInt()
-                bottom = (rect.bottom.toFloat() * rotatedBitmap.height / screenHeight).toInt()
-            } else {
-                left = (rect.top.toFloat() * rotatedBitmap.width / screenWidth).toInt()
-                top = (rect.right.toFloat() * rotatedBitmap.height / screenHeight).toInt()
-                right = (rect.bottom.toFloat() * rotatedBitmap.width / screenWidth).toInt()
-                bottom = (rect.left.toFloat() * rotatedBitmap.height / screenHeight).toInt()
-            }
+            val left = (rect.left.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+            val top = (rect.top.toFloat() * rotatedBitmap.height / screenHeight).toInt()
+            val right = (rect.right.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+            val bottom = (rect.bottom.toFloat() * rotatedBitmap.height / screenHeight).toInt()
 
             val epsilon = 1
             val correctedLeft = max(0, left - epsilon)
@@ -350,6 +338,13 @@ class MainActivity : AppCompatActivity() {
             val correctedRight = min(rotatedBitmap.width, right + epsilon)
             val correctedBottom = min(rotatedBitmap.height, bottom + epsilon)
 
+            // Проверяем, чтобы верхняя граница не была больше или равной нижней границе
+            if (correctedTop >= correctedBottom) {
+                Log.e("CropImage", "Incorrect crop coordinates: top >= bottom")
+                return null
+            }
+
+            // Обрезаем изображение с учетом корректированных координат
             Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
         } catch (e: Exception) {
             Log.e("CropImage", "Error cropping image: ${e.message}")
