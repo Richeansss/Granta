@@ -1,10 +1,7 @@
 package com.example.granta
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.*
 import android.util.Log
 import android.util.SparseArray
 import com.google.android.gms.vision.text.TextBlock
@@ -55,14 +52,15 @@ class TextRecognizer(private val context: Context) {
     }
 
     fun recognizeText(bitmap: Bitmap, whitelist: String = ""): String {
-        val preprocessedBitmap = preprocessBitmap(bitmap)
+        // Увеличение размера изображения до 2x
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, bitmap.width * 2, bitmap.height * 2, false)
+        val preprocessedBitmap = preprocessBitmap(scaledBitmap)
         tessBaseAPI.setImage(preprocessedBitmap)
         if (whitelist.isNotEmpty()) {
             tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, whitelist)
         }
         return filterText(tessBaseAPI.utF8Text)
     }
-
 
     private fun filterText(text: String): String {
         val unwantedSymbolsRegex = (
@@ -124,14 +122,13 @@ class TextRecognizer(private val context: Context) {
         return colors[medianIndex]
     }
 
-
     private fun convertToBlackWhite(bitmap: Bitmap): Bitmap {
         val bwBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bwBitmap)
         val paint = Paint()
-        val colorMatrix = android.graphics.ColorMatrix()
+        val colorMatrix = ColorMatrix()
         colorMatrix.setSaturation(0f)
-        val filter = android.graphics.ColorMatrixColorFilter(colorMatrix)
+        val filter = ColorMatrixColorFilter(colorMatrix)
         paint.colorFilter = filter
         canvas.drawBitmap(bitmap, 0f, 0f, paint)
         return bwBitmap
@@ -195,9 +192,9 @@ class TextRecognizer(private val context: Context) {
         bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         for (i in 0 until bitmap.width * bitmap.height) {
             val color = if ((pixels[i] and 0xFF) > threshold) {
-                0xFFFFFFFF.toInt() // white
+                0xFFFFFFFF.toInt() // белый
             } else {
-                0xFF000000.toInt() // black
+                0xFF000000.toInt() // черный
             }
             pixels[i] = color
         }
@@ -208,7 +205,6 @@ class TextRecognizer(private val context: Context) {
     fun release() {
         tessBaseAPI.end()
     }
-
 
     fun drawTextBounds(bitmap: Bitmap, textBlocks: SparseArray<TextBlock>): Bitmap {
         val paint = Paint()
@@ -224,8 +220,6 @@ class TextRecognizer(private val context: Context) {
         }
         return bitmap
     }
-
-
 
     fun drawTextBoundsOnImage(bitmap: Bitmap, textBlocks: SparseArray<TextBlock>): Bitmap {
         val copiedBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true) // Создаем копию изображения
@@ -267,5 +261,6 @@ class TextRecognizer(private val context: Context) {
             return false
         }
     }
-
 }
+
+

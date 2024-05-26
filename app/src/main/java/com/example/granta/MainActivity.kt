@@ -76,40 +76,7 @@ class MainActivity : AppCompatActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var photoUri by remember { mutableStateOf<Uri?>(null) }
-
-                    val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
-
-                    when {
-                        !isPhotoTaken && photoUri == null -> {
-                            imageRecognitionMenu(
-                                onTakePhoto = {
-                                    cameraViewModel.setPhotoTaken(true)
-                                },
-                                onRecognizeText = {
-                                    // No action needed here, text recognition will be available after taking a photo
-                                }
-                            )
-                        }
-                        isPhotoTaken -> {
-                            CameraContent(
-                                onPhotoTaken = { uri ->
-                                    photoUri = uri
-                                    cameraViewModel.setPhotoTaken(false)
-                                },
-                                onRectChanged = { rect, orientation ->
-                                    // Handle the rectangle change if needed
-                                    Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
-                                }
-                            )
-                        }
-                        photoUri != null -> {
-                            imageRecognitionScreen(textRecognizer, photoUri) {
-                                // Reset state after recognition is done
-                                photoUri = null
-                            }
-                        }
-                    }
+                    MainScreen()
                 }
             }
         }
@@ -140,7 +107,6 @@ class MainActivity : AppCompatActivity() {
             val preview = Preview.Builder().build()
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -161,14 +127,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Composable
+    fun MainScreen() {
+        var photoUri by remember { mutableStateOf<Uri?>(null) }
+        val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
+
+        when {
+            !isPhotoTaken && photoUri == null -> {
+                imageRecognitionMenu(
+                    onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
+                    onRecognizeText = { /* No action needed */ }
+                )
+            }
+            isPhotoTaken -> {
+                CameraContent(
+                    onPhotoTaken = { uri ->
+                        photoUri = uri
+                        cameraViewModel.setPhotoTaken(false)
+                    },
+                    onRectChanged = { rect, orientation ->
+                        Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
+                    }
+                )
+            }
+            photoUri != null -> {
+                imageRecognitionScreen(textRecognizer, photoUri) {
+                    photoUri = null
+                }
+            }
+        }
+    }
+
+    @Composable
     fun RectangularOverlay(
         modifier: Modifier = Modifier,
         onRectChanged: (android.graphics.Rect, String) -> Unit
     ) {
         val configuration = LocalConfiguration.current
-
-        Log.d("Orientation", "Current orientation rect: ${configuration.orientation}")
-
         val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
             else -> 300.dp to 200.dp
@@ -180,23 +174,16 @@ class MainActivity : AppCompatActivity() {
             else -> "Undefined"
         }
 
-        Box(
-            modifier = modifier.fillMaxSize()
-        ) {
+        Box(modifier = modifier.fillMaxSize()) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val screenWidth = size.width.toDp()
                 val screenHeight = size.height.toDp()
-
                 val rectLeft = (screenWidth - rectWidth) / 2
                 val rectTop = (screenHeight - rectHeight) / 2
                 val rectRight = rectLeft + rectWidth
                 val rectBottom = rectTop + rectHeight
 
-                drawRect(
-                    color = Color.Black.copy(alpha = 0.7f),
-                    size = size
-                )
-
+                drawRect(color = Color.Black.copy(alpha = 0.7f), size = size)
                 drawRect(
                     color = Color.Transparent,
                     topLeft = Offset(rectLeft.toPx(), rectTop.toPx()),
@@ -218,25 +205,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Composable
-    fun ScreenSizeListener(onSizeChanged: (Int, Int, String) -> Unit) {
-        val configuration = LocalConfiguration.current
-
-        LaunchedEffect(Unit) {
-            snapshotFlow { configuration }
-                .collect { newConfiguration ->
-                    val orientationName = when (newConfiguration.orientation) {
-                        Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
-                        Configuration.ORIENTATION_PORTRAIT -> "Portrait"
-                        else -> "Undefined"
-                    }
-                    Log.d("Orientation", "Orientation: $orientationName")
-                    onSizeChanged(newConfiguration.screenWidthDp, newConfiguration.screenHeightDp, orientationName)
-                    Log.d("ScreenSizeListener", "Screen size changed: width=${newConfiguration.screenWidthDp}, height=${newConfiguration.screenHeightDp}, orientation=$orientationName")
-                }
-        }
-    }
-
-    @Composable
     fun CameraContent(
         onPhotoTaken: (Uri) -> Unit,
         onRectChanged: (android.graphics.Rect, String) -> Unit
@@ -246,12 +214,6 @@ class MainActivity : AppCompatActivity() {
 
         var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
         var currentOrientation by remember { mutableStateOf("Undefined") }
-
-        val handleRectAndOrientationChange: (android.graphics.Rect, String) -> Unit = { rect, orientation ->
-            currentRect = rect
-            currentOrientation = orientation
-            onRectChanged(rect, orientation)
-        }
 
         LaunchedEffect(Unit) {
             val cameraProvider = ProcessCameraProvider.getInstance(context)
@@ -277,31 +239,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            AndroidView(
-                factory = { previewView },
-                modifier = Modifier.fillMaxSize()
-            )
-
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
             RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect, orientation ->
-                handleRectAndOrientationChange(rect, orientation)
+                currentRect = rect
+                currentOrientation = orientation
+                onRectChanged(rect, orientation)
             }
-
             CaptureButton(
-                onClick = { takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation) },
+                onClick = {
+                    takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation)
+                },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }
 
     @Composable
-    fun CaptureButton(
-        onClick: () -> Unit,
-        modifier: Modifier = Modifier
-    ) {
-        Button(
-            onClick = onClick,
-            modifier = modifier
-        ) {
+    fun CaptureButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+        Button(onClick = onClick, modifier = modifier) {
             Text("Capture")
         }
     }
@@ -313,17 +268,8 @@ class MainActivity : AppCompatActivity() {
         orientation: String,
         rotation: Int
     ) {
-        val photoFile = File(
-            getOutputDirectory(context),
-            SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-                .format(System.currentTimeMillis()) + ".jpg"
-        )
-
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile)
-            .setMetadata(ImageCapture.Metadata().apply {
-                // Add metadata if needed
-            })
-            .build()
+        val photoFile = createFile(context)
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
         imageCapture.takePicture(
             outputOptions,
@@ -331,7 +277,7 @@ class MainActivity : AppCompatActivity() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = Uri.fromFile(photoFile)
-                    val croppedBitmap = cropImage(Uri.fromFile(photoFile), rect, context, orientation)
+                    val croppedBitmap = cropImage(savedUri, rect, context, orientation)
                     if (croppedBitmap != null) {
                         val croppedFile = saveBitmapToFile(croppedBitmap, context)
                         onPhotoTaken(Uri.fromFile(croppedFile))
@@ -348,32 +294,26 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
-        try {
-            // Открыть поток для чтения изображения из URI
+    private  fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
+        return try {
             val inputStream = context.contentResolver.openInputStream(uri)
-
-            // Загрузить оригинальное изображение из потока
             val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
 
-            // Проверка на null, если оригинальное изображение не удалось загрузить
             if (originalBitmap == null) {
                 Log.e("CropImage", "Failed to load the original image.")
                 return null
             }
 
-            // Вычисление угла поворота изображения в зависимости от ориентации устройства
             val rotationAngle = when (orientation) {
                 "Portrait" -> 90f
                 else -> 0f
             }
 
-            // Создание матрицы для поворота изображения
             val matrix = Matrix().apply {
                 postRotate(rotationAngle)
             }
 
-            // Поворот оригинального изображения
             val rotatedBitmap = Bitmap.createBitmap(
                 originalBitmap,
                 0,
@@ -384,36 +324,42 @@ class MainActivity : AppCompatActivity() {
                 true
             )
 
-            // Преобразование координат прямоугольника с экрана в координаты оригинального изображения
-            val left = (rect.left.toFloat() * rotatedBitmap.width / context.resources.displayMetrics.widthPixels).toInt()
-            val top = (rect.top.toFloat() * rotatedBitmap.height / context.resources.displayMetrics.heightPixels).toInt()
-            val right = (rect.right.toFloat() * rotatedBitmap.width / context.resources.displayMetrics.widthPixels).toInt()
-            val bottom = (rect.bottom.toFloat() * rotatedBitmap.height / context.resources.displayMetrics.heightPixels).toInt()
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            val screenHeight = context.resources.displayMetrics.heightPixels
 
-            // Дополнительные корректировки для более точной обрезки
-            val epsilon = 1 // Допустимое отклонение
+            val left: Int
+            val right: Int
+            val top: Int
+            val bottom: Int
+
+            if (orientation == "Portrait") {
+                left = (rect.left.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+                top = (rect.top.toFloat() * rotatedBitmap.height / screenHeight).toInt()
+                right = (rect.right.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+                bottom = (rect.bottom.toFloat() * rotatedBitmap.height / screenHeight).toInt()
+            } else {
+                left = (rect.top.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+                top = (rect.right.toFloat() * rotatedBitmap.height / screenHeight).toInt()
+                right = (rect.bottom.toFloat() * rotatedBitmap.width / screenWidth).toInt()
+                bottom = (rect.left.toFloat() * rotatedBitmap.height / screenHeight).toInt()
+            }
+
+            val epsilon = 1
             val correctedLeft = max(0, left - epsilon)
             val correctedTop = max(0, top - epsilon)
             val correctedRight = min(rotatedBitmap.width, right + epsilon)
             val correctedBottom = min(rotatedBitmap.height, bottom + epsilon)
 
-            // Обрезка изображения с учетом преобразованных и скорректированных координат прямоугольника
-            val croppedBitmap = Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
-
-            return croppedBitmap
+            Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
         } catch (e: Exception) {
             Log.e("CropImage", "Error cropping image: ${e.message}")
-            return null
+            null
         }
     }
 
 
     private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
-        val photoFile = File(
-            getOutputDirectory(context),
-            SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-                .format(System.currentTimeMillis()) + "_cropped.jpg"
-        )
+        val photoFile = createFile(context, "_cropped")
         val outputStream = FileOutputStream(photoFile)
         bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
         outputStream.flush()
@@ -421,11 +367,12 @@ class MainActivity : AppCompatActivity() {
         return photoFile
     }
 
-    private fun getOutputDirectory(context: Context): File {
+    private fun createFile(context: Context, suffix: String = ""): File {
         val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
             File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
         }
-        return if (mediaDir != null && mediaDir.exists()) mediaDir else context.filesDir
+        val directory = mediaDir ?: context.filesDir
+        return File(directory, SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + suffix + ".jpg")
     }
 
     private fun showToast(context: Context, message: String) {
