@@ -1,52 +1,53 @@
-    package com.example.granta
+package com.example.granta
 
-    import android.content.Context
-    import android.content.res.Configuration
-    import android.graphics.Bitmap
-    import android.graphics.BitmapFactory
-    import android.graphics.Matrix
-    import android.graphics.Rect
-    import android.net.Uri
-    import android.os.Bundle
-    import android.util.Log
-    import android.widget.Toast
-    import androidx.activity.compose.setContent
-    import androidx.activity.viewModels
-    import androidx.appcompat.app.AppCompatActivity
-    import androidx.camera.core.CameraSelector
-    import androidx.camera.core.ImageCapture
-    import androidx.camera.core.ImageCaptureException
-    import androidx.camera.core.Preview
-    import androidx.camera.lifecycle.ProcessCameraProvider
-    import androidx.camera.view.PreviewView
-    import androidx.compose.foundation.Canvas
-    import androidx.compose.foundation.layout.Box
-    import androidx.compose.foundation.layout.fillMaxSize
-    import androidx.compose.material3.Button
-    import androidx.compose.material3.MaterialTheme
-    import androidx.compose.material3.Surface
-    import androidx.compose.material3.Text
-    import androidx.compose.runtime.*
-    import androidx.compose.ui.Alignment
-    import androidx.compose.ui.Modifier
-    import androidx.compose.ui.geometry.Offset
-    import androidx.compose.ui.graphics.BlendMode
-    import androidx.compose.ui.graphics.Color
-    import androidx.compose.ui.platform.LocalConfiguration
-    import androidx.compose.ui.platform.LocalContext
-    import androidx.compose.ui.unit.Dp
-    import androidx.compose.ui.unit.dp
-    import androidx.compose.ui.viewinterop.AndroidView
-    import androidx.core.app.ActivityCompat
-    import androidx.core.content.ContextCompat
-    import androidx.lifecycle.LifecycleOwner
-    import com.example.granta.ui.theme.GrantaTheme
-    import java.io.File
-    import java.io.FileOutputStream
-    import java.lang.Integer.max
-    import java.lang.Integer.min
-    import java.text.SimpleDateFormat
-    import java.util.*
+import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.Rect
+import android.net.Uri
+import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
+import androidx.lifecycle.LifecycleOwner
+import com.example.granta.ui.theme.GrantaTheme
+import java.io.File
+import java.io.FileOutputStream
+import java.lang.Integer.max
+import java.lang.Integer.min
+import java.text.SimpleDateFormat
+import java.util.*
 
     class MainActivity : AppCompatActivity() {
 
@@ -306,9 +307,12 @@
                     return null
                 }
 
-                // Определяем угол поворота в зависимости от ориентации
-                val rotationAngle = when (orientation) {
-                    "Portrait" -> 90f
+                // Получаем метаданные EXIF
+                val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
+                val rotationAngle = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
                     else -> 0f
                 }
 
