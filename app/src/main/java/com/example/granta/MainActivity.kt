@@ -49,353 +49,335 @@ import java.lang.Integer.min
 import java.text.SimpleDateFormat
 import java.util.*
 
-    class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity() {
 
-        private lateinit var textRecognizer: TextRecognizer
-        private lateinit var imageCapture: ImageCapture
-        private val cameraViewModel: CameraViewModel by viewModels()
+    private lateinit var textRecognizer: TextRecognizer
+    private lateinit var imageCapture: ImageCapture
+    private val cameraViewModel: CameraViewModel by viewModels()
 
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-            textRecognizer = TextRecognizer(this)
-            imageCapture = ImageCapture.Builder().build()
+        textRecognizer = TextRecognizer(this)
+        imageCapture = ImageCapture.Builder().build()
 
+        if (CameraUtils.allPermissionsGranted(this)) {
+            startCamera()
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                CameraUtils.REQUIRED_PERMISSIONS,
+                CameraUtils.REQUEST_CODE_PERMISSIONS
+            )
+        }
+
+        setContent {
+            GrantaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MainScreen()
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        textRecognizer.release()
+        CameraUtils.stopCamera()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CameraUtils.REQUEST_CODE_PERMISSIONS) {
             if (CameraUtils.allPermissionsGranted(this)) {
                 startCamera()
             } else {
-                ActivityCompat.requestPermissions(
-                    this,
-                    CameraUtils.REQUIRED_PERMISSIONS,
-                    CameraUtils.REQUEST_CODE_PERMISSIONS
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
+
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val preview = Preview.Builder().build()
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    this as LifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            } catch (exc: Exception) {
+                showToast("Error starting camera: ${exc.message}")
+                Log.e("MainActivity", "Error starting camera: ${exc.message}")
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    @Composable
+    fun MainScreen() {
+        var photoUri by remember { mutableStateOf<Uri?>(null) }
+        val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
+
+        when {
+            !isPhotoTaken && photoUri == null -> {
+                imageRecognitionMenu(
+                    onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
+                    onRecognizeText = { /* No action needed */ }
                 )
             }
-
-            setContent {
-                GrantaTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        MainScreen()
+            isPhotoTaken -> {
+                CameraContent(
+                    onPhotoTaken = { uri ->
+                        photoUri = uri
+                        cameraViewModel.setPhotoTaken(false)
+                    },
+                    onRectChanged = { rect, orientation ->
+                        Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
                     }
+                )
+            }
+            photoUri != null -> {
+                imageRecognitionScreen(textRecognizer, photoUri) {
+                    photoUri = null
                 }
             }
         }
+    }
 
-        override fun onDestroy() {
-            super.onDestroy()
-            textRecognizer.release()
-            CameraUtils.stopCamera()
+    @Composable
+    fun RectangularOverlay(
+        modifier: Modifier = Modifier,
+        onRectChanged: (android.graphics.Rect, String) -> Unit
+    ) {
+        val configuration = LocalConfiguration.current
+        val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
+            else -> 300.dp to 200.dp
         }
 
-        override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-            if (requestCode == CameraUtils.REQUEST_CODE_PERMISSIONS) {
-                if (CameraUtils.allPermissionsGranted(this)) {
-                    startCamera()
-                } else {
-                    Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
-                    finish()
-                }
+        val orientationName = when (configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
+            Configuration.ORIENTATION_PORTRAIT -> "Portrait"
+            else -> "Undefined"
+        }
+
+        Box(modifier = modifier.fillMaxSize()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val screenWidth = size.width.toDp()
+                val screenHeight = size.height.toDp()
+                val rectLeft = (screenWidth - rectWidth) / 2
+                val rectTop = (screenHeight - rectHeight) / 2
+                val rectRight = rectLeft + rectWidth
+                val rectBottom = rectTop + rectHeight
+
+                drawRect(color = Color.Black.copy(alpha = 0.7f), size = size)
+                drawRect(
+                    color = Color.Transparent,
+                    topLeft = Offset(rectLeft.toPx(), rectTop.toPx()),
+                    size = androidx.compose.ui.geometry.Size(rectWidth.toPx(), rectHeight.toPx()),
+                    blendMode = BlendMode.Clear
+                )
+
+                onRectChanged(
+                    android.graphics.Rect(
+                        rectLeft.toPx().toInt(),
+                        rectTop.toPx().toInt(),
+                        rectRight.toPx().toInt(),
+                        rectBottom.toPx().toInt()
+                    ),
+                    orientationName
+                )
             }
         }
+    }
 
-        private fun startCamera() {
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build()
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    @Composable
+    fun CameraContent(
+        onPhotoTaken: (Uri) -> Unit,
+        onRectChanged: (android.graphics.Rect, String) -> Unit
+    ) {
+        val context = LocalContext.current
+        val previewView = remember { PreviewView(context) }
+
+        var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
+        var currentOrientation by remember { mutableStateOf("Undefined") }
+
+        LaunchedEffect(Unit) {
+            val cameraProvider = ProcessCameraProvider.getInstance(context)
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            cameraProvider.addListener({
+                val preview = Preview.Builder().build().apply {
+                    setSurfaceProvider(previewView.surfaceProvider)
+                }
 
                 try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        this as LifecycleOwner,
+                    cameraProvider.get().unbindAll()
+                    cameraProvider.get().bindToLifecycle(
+                        context as LifecycleOwner,
                         cameraSelector,
                         preview,
                         imageCapture
                     )
                 } catch (exc: Exception) {
-                    showToast("Error starting camera: ${exc.message}")
-                    Log.e("MainActivity", "Error starting camera: ${exc.message}")
+                    Log.e("CameraContent", "Error starting camera: ${exc.message}")
                 }
-            }, ContextCompat.getMainExecutor(this))
+            }, ContextCompat.getMainExecutor(context))
         }
 
-        private fun showToast(message: String) {
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-        }
-
-        @Composable
-        fun MainScreen() {
-            var photoUri by remember { mutableStateOf<Uri?>(null) }
-            val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
-
-            when {
-                !isPhotoTaken && photoUri == null -> {
-                    imageRecognitionMenu(
-                        onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
-                        onRecognizeText = { /* No action needed */ }
-                    )
-                }
-                isPhotoTaken -> {
-                    CameraContent(
-                        onPhotoTaken = { uri ->
-                            photoUri = uri
-                            cameraViewModel.setPhotoTaken(false)
-                        },
-                        onRectChanged = { rect, orientation ->
-                            Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
-                        }
-                    )
-                }
-                photoUri != null -> {
-                    imageRecognitionScreen(textRecognizer, photoUri) {
-                        photoUri = null
-                    }
-                }
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect, orientation ->
+                currentRect = rect
+                currentOrientation = orientation
+                onRectChanged(rect, orientation)
             }
-        }
-
-        @Composable
-        fun RectangularOverlay(
-            modifier: Modifier = Modifier,
-            onRectChanged: (android.graphics.Rect, String) -> Unit
-        ) {
-            val configuration = LocalConfiguration.current
-            val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
-                else -> 300.dp to 200.dp
-            }
-
-            val orientationName = when (configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
-                Configuration.ORIENTATION_PORTRAIT -> "Portrait"
-                else -> "Undefined"
-            }
-
-            Box(modifier = modifier.fillMaxSize()) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val screenWidth = size.width.toDp()
-                    val screenHeight = size.height.toDp()
-                    val rectLeft = (screenWidth - rectWidth) / 2
-                    val rectTop = (screenHeight - rectHeight) / 2
-                    val rectRight = rectLeft + rectWidth
-                    val rectBottom = rectTop + rectHeight
-
-                    drawRect(color = Color.Black.copy(alpha = 0.7f), size = size)
-                    drawRect(
-                        color = Color.Transparent,
-                        topLeft = Offset(rectLeft.toPx(), rectTop.toPx()),
-                        size = androidx.compose.ui.geometry.Size(rectWidth.toPx(), rectHeight.toPx()),
-                        blendMode = BlendMode.Clear
-                    )
-
-                    onRectChanged(
-                        android.graphics.Rect(
-                            rectLeft.toPx().toInt(),
-                            rectTop.toPx().toInt(),
-                            rectRight.toPx().toInt(),
-                            rectBottom.toPx().toInt()
-                        ),
-                        orientationName
-                    )
-                }
-            }
-        }
-
-
-        @Composable
-        fun CameraContent(
-            onPhotoTaken: (Uri) -> Unit,
-            onRectChanged: (android.graphics.Rect, String) -> Unit
-        ) {
-            val context = LocalContext.current
-            val previewView = remember { PreviewView(context) }
-
-            var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
-            var currentOrientation by remember { mutableStateOf("Undefined") }
-
-            LaunchedEffect(Unit) {
-                val cameraProvider = ProcessCameraProvider.getInstance(context)
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                cameraProvider.addListener({
-                    val preview = Preview.Builder().build().apply {
-                        setSurfaceProvider(previewView.surfaceProvider)
-                    }
-
-                    try {
-                        cameraProvider.get().unbindAll()
-                        cameraProvider.get().bindToLifecycle(
-                            context as LifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageCapture
-                        )
-                    } catch (exc: Exception) {
-                        Log.e("CameraContent", "Error starting camera: ${exc.message}")
-                    }
-                }, ContextCompat.getMainExecutor(context))
-            }
-
-            Box(modifier = Modifier.fillMaxSize()) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-                RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect, orientation ->
-                    currentRect = rect
-                    currentOrientation = orientation
-                    onRectChanged(rect, orientation)
-                }
-                CaptureButton(
-                    onClick = {
-                        takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation)
-                    },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
-        }
-
-        @Composable
-        fun CaptureButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-            Button(onClick = onClick, modifier = modifier) {
-                Text("Capture")
-            }
-        }
-
-        private fun takePhoto(
-            context: Context,
-            onPhotoTaken: (Uri) -> Unit,
-            rect: Rect,
-            orientation: String,
-            rotation: Int
-        ) {
-            val photoFile = createFile(context)
-            val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-            imageCapture.takePicture(
-                outputOptions,
-                ContextCompat.getMainExecutor(context),
-                object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                        val savedUri = Uri.fromFile(photoFile)
-                        val croppedBitmap = cropImage(savedUri, rect, context, orientation)
-                        if (croppedBitmap != null) {
-                            val croppedFile = saveBitmapToFile(croppedBitmap, context)
-                            onPhotoTaken(Uri.fromFile(croppedFile))
-                            showToast(context, "Photo saved: $savedUri")
-                        } else {
-                            showToast(context, "Error cropping photo: cropped bitmap is null")
-                        }
-                    }
-
-                    override fun onError(exception: ImageCaptureException) {
-                        showToast(context, "Error saving photo: ${exception.message}")
-                    }
-                }
+            CaptureButton(
+                onClick = {
+                    takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
+    }
 
-        private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
-            return try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val originalBitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream?.close()
-
-                if (originalBitmap == null) {
-                    Log.e("CropImage", "Failed to load the original image.")
-                    return null
-                }
-
-                // Получаем метаданные EXIF
-                val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
-                val rotationAngle = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-                    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                    else -> 0f
-                }
-
-                // Создаем матрицу для поворота изображения
-                val matrix = Matrix().apply {
-                    postRotate(rotationAngle)
-                }
-
-                // Поворачиваем изображение
-                val rotatedBitmap = Bitmap.createBitmap(
-                    originalBitmap,
-                    0,
-                    0,
-                    originalBitmap.width,
-                    originalBitmap.height,
-                    matrix,
-                    true
-                )
-
-                // Определяем размеры экрана
-                val screenWidth = context.resources.displayMetrics.widthPixels
-                val screenHeight = context.resources.displayMetrics.heightPixels
-
-                // Вычисляем соотношение сторон для экрана и изображения
-                val screenAspectRatio = screenWidth.toFloat() / screenHeight
-                val imageAspectRatio = rotatedBitmap.width.toFloat() / rotatedBitmap.height
-
-                // Масштабируем размеры прямоугольника, учитывая соотношение сторон
-                val scaleFactor = if (screenAspectRatio > imageAspectRatio) {
-                    rotatedBitmap.width.toFloat() / screenWidth
-                } else {
-                    rotatedBitmap.height.toFloat() / screenHeight
-                }
-
-                val scaledRectWidth = (rect.width() * scaleFactor).toInt()
-                val scaledRectHeight = (rect.height() * scaleFactor).toInt()
-
-                // Центрируем прямоугольник на изображении
-                val centerX = rotatedBitmap.width / 2
-                val centerY = rotatedBitmap.height / 2
-                val correctedLeft = max(0, centerX - scaledRectWidth / 2)
-                val correctedTop = max(0, centerY - scaledRectHeight / 2)
-                val correctedRight = min(rotatedBitmap.width, centerX + scaledRectWidth / 2)
-                val correctedBottom = min(rotatedBitmap.height, centerY + scaledRectHeight / 2)
-
-                // Проверяем, чтобы верхняя граница не была больше или равной нижней границе
-                if (correctedTop >= correctedBottom || correctedLeft >= correctedRight) {
-                    Log.e("CropImage", "Incorrect crop coordinates: top >= bottom or left >= right")
-                    return null
-                }
-
-                // Обрезаем изображение с учетом корректированных координат
-                Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
-            } catch (e: Exception) {
-                Log.e("CropImage", "Error cropping image: ${e.message}", e)
-                null
-            }
-        }
-
-
-
-        private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
-            val photoFile = createFile(context, "_cropped")
-            val outputStream = FileOutputStream(photoFile)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-            outputStream.flush()
-            outputStream.close()
-            return photoFile
-        }
-
-        private fun createFile(context: Context, suffix: String = ""): File {
-            val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
-                File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
-            }
-            val directory = mediaDir ?: context.filesDir
-            return File(directory, SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + suffix + ".jpg")
-        }
-
-        private fun showToast(context: Context, message: String) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
-
-        companion object {
-            private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+    @Composable
+    fun CaptureButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+        Button(onClick = onClick, modifier = modifier) {
+            Text("Capture")
         }
     }
+
+    private fun takePhoto(
+        context: Context,
+        onPhotoTaken: (Uri) -> Unit,
+        rect: Rect,
+        orientation: String,
+        rotation: Int
+    ) {
+        val photoFile = createFile(context)
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(context),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    val savedUri = Uri.fromFile(photoFile)
+                    val croppedBitmap = cropImage(savedUri, rect, context, orientation)
+                    if (croppedBitmap != null) {
+                        val croppedFile = saveBitmapToFile(croppedBitmap, context)
+                        onPhotoTaken(Uri.fromFile(croppedFile))
+                        showToast(context, "Photo saved: $savedUri")
+                    } else {
+                        showToast(context, "Error cropping photo: cropped bitmap is null")
+                    }
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    showToast(context, "Error saving photo: ${exception.message}")
+                }
+            }
+        )
+    }
+
+    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap == null) {
+                Log.e("CropImage", "Failed to load the original image.")
+                return null
+            }
+
+            val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
+            val rotationAngle = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+
+            val matrix = Matrix().apply { postRotate(rotationAngle) }
+            val rotatedBitmap = Bitmap.createBitmap(
+                originalBitmap,
+                0,
+                0,
+                originalBitmap.width,
+                originalBitmap.height,
+                matrix,
+                true
+            )
+
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            val screenAspectRatio = screenWidth.toFloat() / screenHeight
+            val imageAspectRatio = rotatedBitmap.width.toFloat() / rotatedBitmap.height
+            val scaleFactor = if (screenAspectRatio > imageAspectRatio) {
+                rotatedBitmap.width.toFloat() / screenWidth
+            } else {
+                rotatedBitmap.height.toFloat() / screenHeight
+            }
+
+            val scaledRectWidth = (rect.width() * scaleFactor).toInt()
+            val scaledRectHeight = (rect.height() * scaleFactor).toInt()
+            val centerX = rotatedBitmap.width / 2
+            val centerY = rotatedBitmap.height / 2
+            val correctedLeft = max(0, centerX - scaledRectWidth / 2)
+            val correctedTop = max(0, centerY - scaledRectHeight / 2)
+            val correctedRight = min(rotatedBitmap.width, centerX + scaledRectWidth / 2)
+            val correctedBottom = min(rotatedBitmap.height, centerY + scaledRectHeight / 2)
+
+            if (correctedTop >= correctedBottom || correctedLeft >= correctedRight) {
+                Log.e("CropImage", "Incorrect crop coordinates: top >= bottom or left >= right")
+                return null
+            }
+
+            Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
+        } catch (e: Exception) {
+            Log.e("CropImage", "Error cropping image: ${e.message}", e)
+            null
+        }
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
+        val photoFile = createFile(context, "_cropped")
+        val outputStream = FileOutputStream(photoFile)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+        outputStream.flush()
+        outputStream.close()
+        return photoFile
+    }
+
+    private fun createFile(context: Context, suffix: String = ""): File {
+        val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
+            File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
+        }
+        val directory = mediaDir ?: context.filesDir
+        return File(directory, SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + suffix + ".jpg")
+    }
+
+    private fun showToast(context: Context, message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    companion object {
+        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+    }
+}
