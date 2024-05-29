@@ -153,6 +153,8 @@ class MainActivity : AppCompatActivity() {
                     shape = GradientDrawable.OVAL
                     setColor(savedColor)
                 }
+                // Логирование восстановления значений
+                Log.d("MainActivity", "restoreButtonValues: restored option = $savedOption, color = $savedColor for day $dayOfMonth")
             }
         }
     }
@@ -198,10 +200,17 @@ class MainActivity : AppCompatActivity() {
             shape = GradientDrawable.OVAL
             setColor(Color.GRAY)
         }
+
+        // Логирование удаления
+        Log.d("MainActivity", "clearButton: called for day $dayOfMonth")
+
+        // Получение сохраненной опции перед удалением
+        val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
+        Log.d("MainActivity", "clearButton: savedOption = $savedOption for day $dayOfMonth") // Логирование считанного значения
+
+        // Удаление опций после получения сохраненной опции
         clearSelectedOption(dayOfMonth)
 
-        // Вычитание часов и денег
-        val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
         if (savedOption != null) {
             sumHour -= when (savedOption) {
                 "12н", "12д" -> 12
@@ -225,17 +234,20 @@ class MainActivity : AppCompatActivity() {
             // Обновление отображения общего количества часов
             sumHourTextView.text = sumHour.toString()
             sumMoneyTextView.text = sumMoney.toString()
+        } else {
+            Log.d("MainActivity", "clearButton: no savedOption found for day $dayOfMonth")
         }
     }
+
 
     private fun clearSelectedOption(dayOfMonth: Int) {
         with(sharedPreferences.edit()) {
             remove("day_$dayOfMonth")
             remove("day_color_$dayOfMonth")
-            apply()
+            apply() // Ensure this is called to save the changes
         }
+        Log.d("MainActivity", "clearSelectedOption: cleared options for day $dayOfMonth")
     }
-
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
         button.text = text
@@ -245,6 +257,9 @@ class MainActivity : AppCompatActivity() {
             setColor(color)
         }
         saveSelectedOption(dayOfMonth, text, color)
+
+        // Логирование сохраненной опции
+        Log.d("MainActivity", "updateButton: saved option = $text, color = $color for day $dayOfMonth")
 
         // Обновление общего количества часов
         sumHour += when (text) {
@@ -272,18 +287,18 @@ class MainActivity : AppCompatActivity() {
         sumMoneyTextView.text = sumMoney.toString()
     }
 
-
     private fun saveSelectedOption(dayOfMonth: Int, selectedOption: String, selectedColor: Int) {
         with(sharedPreferences.edit()) {
             putString("day_$dayOfMonth", selectedOption)
             putInt("day_color_$dayOfMonth", selectedColor)
-            apply()
+            apply() // Ensure this is called to save the data
         }
+        Log.d("MainActivity", "saveSelectedOption: saved option = $selectedOption, color = $selectedColor for day $dayOfMonth")
     }
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentMonthLength(): Int {
         return LocalDate.now().lengthOfMonth()
     }
 }
-
