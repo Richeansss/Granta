@@ -1,383 +1,289 @@
 package com.example.granta
 
+import android.app.AlertDialog
 import android.content.Context
-import android.content.res.Configuration
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.net.Uri
+import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.util.Log
-import android.widget.Toast
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
+import android.widget.Button
+import android.widget.GridLayout
+import android.widget.Space
+import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.exifinterface.media.ExifInterface
-import androidx.lifecycle.LifecycleOwner
-import com.example.granta.ui.theme.GrantaTheme
-import java.io.File
-import java.io.FileOutputStream
-import java.lang.Integer.max
-import java.lang.Integer.min
-import java.text.SimpleDateFormat
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.format.TextStyle
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var textRecognizer: TextRecognizer
-    private lateinit var imageCapture: ImageCapture
-    private val cameraViewModel: CameraViewModel by viewModels()
+    private lateinit var dateTextView: TextView
+    private lateinit var countMonthTextView: TextView
+    private lateinit var sumHourTextView: TextView
+    private lateinit var sumMoneyTextView: TextView
 
+    private lateinit var buttonToImageRecognizer: Button
+    private lateinit var sharedPreferences: SharedPreferences
+    private var sumHour: Int = 0 // Общее количество часов
+    private var sumMoney: Int = 0 // Общее количество часов
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        textRecognizer = TextRecognizer(this)
-        imageCapture = ImageCapture.Builder().build()
+        dateTextView = findViewById(R.id.dateTextView)
+        sumMoneyTextView = findViewById(R.id.sumMoneyTextView)
+        sumHourTextView = findViewById(R.id.sumHourTextView)
+        countMonthTextView = findViewById(R.id.countMonthTextView)
 
-        if (CameraUtils.allPermissionsGranted(this)) {
-            startCamera()
-        } else {
-            ActivityCompat.requestPermissions(
-                this,
-                CameraUtils.REQUIRED_PERMISSIONS,
-                CameraUtils.REQUEST_CODE_PERMISSIONS
-            )
+        buttonToImageRecognizer = findViewById(R.id.buttonToImageRecognizer)
+        val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
+
+        val currentDate = LocalDate.now()
+        val countDaysOfMonth = currentDate.lengthOfMonth()
+
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val screenWidth = displayMetrics.widthPixels
+
+        val buttonsPerRow = 7
+        val buttonSize = (screenWidth / buttonsPerRow) - 28
+        val buttonMargin = 8
+
+        val firstDayOfMonth = LocalDate.of(currentDate.year, currentDate.month, 1)
+        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // Первый день недели месяца (1 - понедельник, 7 - воскресенье)
+
+        sharedPreferences = getSharedPreferences("my_preferences", Context.MODE_PRIVATE)
+
+        val daysOfWeek = DayOfWeek.values().map { it.getDisplayName(TextStyle.SHORT, Locale("ru")) }
+        for (dayOfWeek in daysOfWeek) {
+            val dayTextView = TextView(this).apply {
+                text = dayOfWeek
+                setTextColor(Color.BLACK)
+                textSize = 22f
+                textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = buttonSize
+                    height = buttonSize
+                    setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+                }
+            }
+            calendarGrid.addView(dayTextView)
         }
 
-        setContent {
-            GrantaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    MainScreen()
+        for (i in 1 until firstDayOfWeek) {
+            val emptyView = Space(this).apply {
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = buttonSize
+                    height = buttonSize
+                    setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+                }
+            }
+            calendarGrid.addView(emptyView)
+        }
+
+        for (dayOfMonth in 1..countDaysOfMonth) {
+            val button = Button(this).apply {
+                text = dayOfMonth.toString()
+                setTextColor(Color.WHITE)
+                val params = GridLayout.LayoutParams()
+                params.width = buttonSize
+                params.height = buttonSize
+                params.setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
+                layoutParams = params
+                tag = "button_$dayOfMonth"
+
+                val color = Color.GRAY
+
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                }
+
+                setOnClickListener {
+                    showOptionsDialog(dayOfMonth, this)
+                }
+            }
+            calendarGrid.addView(button)
+        }
+
+        restoreButtonValues()
+
+        val formattedDate = currentDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        countMonthTextView.text = "$countDaysOfMonth"
+
+        buttonToImageRecognizer.setOnClickListener {
+            val intent = Intent(this, ImageRecognizerActivity::class.java)
+            startActivity(intent)
+        }
+
+        // Получение сохраненного значения общего количества часов
+        sumHour = sharedPreferences.getInt("sum_hour", 0)
+        sumMoney = sharedPreferences.getInt("sum_money", 0)
+
+        // Отображение общего количества часов в sumHourTextView
+        sumHourTextView.text = sumHour.toString()
+        sumMoneyTextView.text = sumMoney.toString()
+
+        Log.d("MainActivity", "onCreate: sumHour = $sumHour, sumMoney = $sumMoney")
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun restoreButtonValues() {
+        val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
+        val countDaysOfMonth = getCurrentMonthLength()
+
+        for (dayOfMonth in 1..countDaysOfMonth) {
+            val button = calendarGrid.findViewWithTag<Button>("button_$dayOfMonth")
+            val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
+            val savedColor = sharedPreferences.getInt("day_color_$dayOfMonth", Color.GRAY)
+
+            if (button != null && savedOption != null) {
+                button.text = savedOption
+                button.setTextColor(Color.WHITE)
+                button.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(savedColor)
                 }
             }
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        textRecognizer.release()
-        CameraUtils.stopCamera()
+    private fun showOptionsDialog(dayOfMonth: Int, button: Button) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_custom_layout, null)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        dialogView.findViewById<Button>(R.id.option_1).setOnClickListener {
+            updateButton(dayOfMonth, button, "12н", Color.RED)
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<Button>(R.id.option_2).setOnClickListener {
+            updateButton(dayOfMonth, button, "12д", Color.GREEN)
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<Button>(R.id.option_3).setOnClickListener {
+            updateButton(dayOfMonth, button, "24", Color.BLUE)
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<Button>(R.id.clear_button).setOnClickListener {
+            clearButton(dayOfMonth, button)
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<Button>(R.id.cancel_button).setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CameraUtils.REQUEST_CODE_PERMISSIONS) {
-            if (CameraUtils.allPermissionsGranted(this)) {
-                startCamera()
-            } else {
-                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
-                finish()
+    private fun clearButton(dayOfMonth: Int, button: Button) {
+        button.text = dayOfMonth.toString()
+        button.setTextColor(Color.WHITE)
+        button.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.GRAY)
+        }
+        clearSelectedOption(dayOfMonth)
+
+        // Вычитание часов и денег
+        val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
+        if (savedOption != null) {
+            sumHour -= when (savedOption) {
+                "12н", "12д" -> 12
+                "24" -> 24
+                else -> 0
             }
+
+            sumMoney -= when (savedOption) {
+                "12н", "12д" -> 2
+                "24" -> 4
+                else -> 0
+            }
+
+            // Сохранение обновленного значения часов и денег
+            with(sharedPreferences.edit()) {
+                putInt("sum_hour", sumHour)
+                putInt("sum_money", sumMoney)
+                apply()
+            }
+
+            // Обновление отображения общего количества часов
+            sumHourTextView.text = sumHour.toString()
+            sumMoneyTextView.text = sumMoney.toString()
         }
     }
 
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build()
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this as LifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageCapture
-                )
-            } catch (exc: Exception) {
-                showToast("Error starting camera: ${exc.message}")
-                Log.e("MainActivity", "Error starting camera: ${exc.message}")
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    @Composable
-    fun MainScreen() {
-        var photoUri by remember { mutableStateOf<Uri?>(null) }
-        val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
-
-        when {
-            !isPhotoTaken && photoUri == null -> {
-                imageRecognitionMenu(
-                    onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
-                    onRecognizeText = { /* No action needed */ }
-                )
-            }
-            isPhotoTaken -> {
-                CameraContent(
-                    onPhotoTaken = { uri ->
-                        photoUri = uri
-                        cameraViewModel.setPhotoTaken(false)
-                    },
-                    onRectChanged = { rect, orientation ->
-                        Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
-                    }
-                )
-            }
-            photoUri != null -> {
-                imageRecognitionScreen(textRecognizer, photoUri) {
-                    photoUri = null
-                }
-            }
+    private fun clearSelectedOption(dayOfMonth: Int) {
+        with(sharedPreferences.edit()) {
+            remove("day_$dayOfMonth")
+            remove("day_color_$dayOfMonth")
+            apply()
         }
     }
 
-    @Composable
-    fun RectangularOverlay(
-        modifier: Modifier = Modifier,
-        onRectChanged: (android.graphics.Rect, String) -> Unit
-    ) {
-        val configuration = LocalConfiguration.current
-        val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> 600.dp to 300.dp
-            else -> 300.dp to 200.dp
+
+    private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
+        button.text = text
+        button.setTextColor(Color.WHITE)
+        button.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+        saveSelectedOption(dayOfMonth, text, color)
+
+        // Обновление общего количества часов
+        sumHour += when (text) {
+            "12н", "12д" -> 12
+            "24" -> 24
+            else -> 0
         }
 
-        val orientationName = when (configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> "Landscape"
-            Configuration.ORIENTATION_PORTRAIT -> "Portrait"
-            else -> "Undefined"
+        // Обновление общего количества денег
+        sumMoney += when (text) {
+            "12н", "12д" -> 2
+            "24" -> 4
+            else -> 0
         }
 
-        Box(modifier = modifier.fillMaxSize()) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val screenWidth = size.width.toDp()
-                val screenHeight = size.height.toDp()
-                val rectLeft = (screenWidth - rectWidth) / 2
-                val rectTop = (screenHeight - rectHeight) / 2
-                val rectRight = rectLeft + rectWidth
-                val rectBottom = rectTop + rectHeight
+        // Сохранение общего количества часов
+        with(sharedPreferences.edit()) {
+            putInt("sum_hour", sumHour)
+            putInt("sum_money", sumMoney)
+            apply()
+        }
 
-                drawRect(color = Color.Black.copy(alpha = 0.7f), size = size)
-                drawRect(
-                    color = Color.Transparent,
-                    topLeft = Offset(rectLeft.toPx(), rectTop.toPx()),
-                    size = androidx.compose.ui.geometry.Size(rectWidth.toPx(), rectHeight.toPx()),
-                    blendMode = BlendMode.Clear
-                )
+        // Обновление отображения общего количества часов
+        sumHourTextView.text = sumHour.toString()
+        sumMoneyTextView.text = sumMoney.toString()
+    }
 
-                onRectChanged(
-                    android.graphics.Rect(
-                        rectLeft.toPx().toInt(),
-                        rectTop.toPx().toInt(),
-                        rectRight.toPx().toInt(),
-                        rectBottom.toPx().toInt()
-                    ),
-                    orientationName
-                )
-            }
+
+    private fun saveSelectedOption(dayOfMonth: Int, selectedOption: String, selectedColor: Int) {
+        with(sharedPreferences.edit()) {
+            putString("day_$dayOfMonth", selectedOption)
+            putInt("day_color_$dayOfMonth", selectedColor)
+            apply()
         }
     }
 
-    @Composable
-    fun CameraContent(
-        onPhotoTaken: (Uri) -> Unit,
-        onRectChanged: (android.graphics.Rect, String) -> Unit
-    ) {
-        val context = LocalContext.current
-        val previewView = remember { PreviewView(context) }
-
-        var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
-        var currentOrientation by remember { mutableStateOf("Undefined") }
-
-        LaunchedEffect(Unit) {
-            val cameraProvider = ProcessCameraProvider.getInstance(context)
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            cameraProvider.addListener({
-                val preview = Preview.Builder().build().apply {
-                    setSurfaceProvider(previewView.surfaceProvider)
-                }
-
-                try {
-                    cameraProvider.get().unbindAll()
-                    cameraProvider.get().bindToLifecycle(
-                        context as LifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageCapture
-                    )
-                } catch (exc: Exception) {
-                    Log.e("CameraContent", "Error starting camera: ${exc.message}")
-                }
-            }, ContextCompat.getMainExecutor(context))
-        }
-
-        Box(modifier = Modifier.fillMaxSize()) {
-            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-            RectangularOverlay(modifier = Modifier.fillMaxSize()) { rect, orientation ->
-                currentRect = rect
-                currentOrientation = orientation
-                onRectChanged(rect, orientation)
-            }
-            CaptureButton(
-                onClick = {
-                    takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation)
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-        }
-    }
-
-    @Composable
-    fun CaptureButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-        Button(onClick = onClick, modifier = modifier) {
-            Text("Capture")
-        }
-    }
-
-    private fun takePhoto(
-        context: Context,
-        onPhotoTaken: (Uri) -> Unit,
-        rect: Rect,
-        orientation: String,
-        rotation: Int
-    ) {
-        val photoFile = createFile(context)
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(context),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    val savedUri = Uri.fromFile(photoFile)
-                    val croppedBitmap = cropImage(savedUri, rect, context, orientation)
-                    if (croppedBitmap != null) {
-                        val croppedFile = saveBitmapToFile(croppedBitmap, context)
-                        onPhotoTaken(Uri.fromFile(croppedFile))
-                        showToast(context, "Photo saved: $savedUri")
-                    } else {
-                        showToast(context, "Error cropping photo: cropped bitmap is null")
-                    }
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    showToast(context, "Error saving photo: ${exception.message}")
-                }
-            }
-        )
-    }
-
-    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap == null) {
-                Log.e("CropImage", "Failed to load the original image.")
-                return null
-            }
-
-            val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
-            val rotationAngle = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
-            }
-
-            val matrix = Matrix().apply { postRotate(rotationAngle) }
-            val rotatedBitmap = Bitmap.createBitmap(
-                originalBitmap,
-                0,
-                0,
-                originalBitmap.width,
-                originalBitmap.height,
-                matrix,
-                true
-            )
-
-            val screenWidth = context.resources.displayMetrics.widthPixels
-            val screenHeight = context.resources.displayMetrics.heightPixels
-            val screenAspectRatio = screenWidth.toFloat() / screenHeight
-            val imageAspectRatio = rotatedBitmap.width.toFloat() / rotatedBitmap.height
-            val scaleFactor = if (screenAspectRatio > imageAspectRatio) {
-                rotatedBitmap.width.toFloat() / screenWidth
-            } else {
-                rotatedBitmap.height.toFloat() / screenHeight
-            }
-
-            val scaledRectWidth = (rect.width() * scaleFactor).toInt()
-            val scaledRectHeight = (rect.height() * scaleFactor).toInt()
-            val centerX = rotatedBitmap.width / 2
-            val centerY = rotatedBitmap.height / 2
-            val correctedLeft = max(0, centerX - scaledRectWidth / 2)
-            val correctedTop = max(0, centerY - scaledRectHeight / 2)
-            val correctedRight = min(rotatedBitmap.width, centerX + scaledRectWidth / 2)
-            val correctedBottom = min(rotatedBitmap.height, centerY + scaledRectHeight / 2)
-
-            if (correctedTop >= correctedBottom || correctedLeft >= correctedRight) {
-                Log.e("CropImage", "Incorrect crop coordinates: top >= bottom or left >= right")
-                return null
-            }
-
-            Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
-        } catch (e: Exception) {
-            Log.e("CropImage", "Error cropping image: ${e.message}", e)
-            null
-        }
-    }
-
-    private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
-        val photoFile = createFile(context, "_cropped")
-        val outputStream = FileOutputStream(photoFile)
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        outputStream.flush()
-        outputStream.close()
-        return photoFile
-    }
-
-    private fun createFile(context: Context, suffix: String = ""): File {
-        val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
-            File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
-        }
-        val directory = mediaDir ?: context.filesDir
-        return File(directory, SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + suffix + ".jpg")
-    }
-
-    private fun showToast(context: Context, message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-    }
-
-    companion object {
-        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun getCurrentMonthLength(): Int {
+        return LocalDate.now().lengthOfMonth()
     }
 }
+
