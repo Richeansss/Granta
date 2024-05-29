@@ -14,13 +14,17 @@
                 android:name=".MainActivity"
                 android:exported="true"
                 android:configChanges="orientation|screenSize"
-                android:label="@string/app_name"
                 android:theme="@style/Theme.Granta">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+                android:name=".ImageRecognizerActivity"
+                android:exported="true"
+                android:configChanges="orientation|screenSize"
+                android:theme="@style/Theme.Granta"/>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

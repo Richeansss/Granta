@@ -30,7 +30,7 @@ fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTak
     var recognitionTimeSeconds by remember { mutableStateOf(0L) }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    val context = LocalContext.current as MainActivity
+    val context = LocalContext.current as ImageRecognizerActivity
 
     // Загрузка изображения по Uri
     if (photoUri != null && bitmap == null) {

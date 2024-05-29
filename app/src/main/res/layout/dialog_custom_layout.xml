@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:padding="16dp">
+
+    <TextView
+            android:id="@+id/dialog_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Выберите опцию"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_gravity="center"
+            android:paddingBottom="10dp" />
+
+    <Button
+            android:id="@+id/option_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="12н"
+            android:background="@drawable/button_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="10dp" />
+
+    <Button
+            android:id="@+id/option_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="12д"
+            android:background="@drawable/button_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="10dp" />
+
+    <Button
+            android:id="@+id/option_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="24"
+            android:background="@drawable/button_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="10dp" />
+    <Button
+            android:id="@+id/clear_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Очистить"
+            android:background="@drawable/button_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="10dp" />
+
+    <Button
+            android:id="@+id/cancel_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Отмена"
+            android:textColor="@android:color/black" />
+</LinearLayout>

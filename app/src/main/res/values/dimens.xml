@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Размер кнопки -->
+    <dimen name="button_size">2dp</dimen>
+
+    <!-- Отступы кнопок -->
+    <dimen name="button_margin">50dp</dimen>
+</resources>
