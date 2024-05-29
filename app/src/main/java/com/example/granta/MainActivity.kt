@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
 
         sharedPreferences = getSharedPreferences("my_preferences", Context.MODE_PRIVATE)
 
-        val daysOfWeek = DayOfWeek.values().map { it.getDisplayName(TextStyle.SHORT, Locale("ru")) }
+        val daysOfWeek = DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Locale("ru")) }
         for (dayOfWeek in daysOfWeek) {
             val dayTextView = TextView(this).apply {
                 text = dayOfWeek
@@ -132,8 +132,6 @@ class MainActivity : AppCompatActivity() {
         // Отображение общего количества часов в sumHourTextView
         sumHourTextView.text = sumHour.toString()
         sumMoneyTextView.text = sumMoney.toString()
-
-        Log.d("MainActivity", "onCreate: sumHour = $sumHour, sumMoney = $sumMoney")
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -153,8 +151,6 @@ class MainActivity : AppCompatActivity() {
                     shape = GradientDrawable.OVAL
                     setColor(savedColor)
                 }
-                // Логирование восстановления значений
-                Log.d("MainActivity", "restoreButtonValues: restored option = $savedOption, color = $savedColor for day $dayOfMonth")
             }
         }
     }
@@ -244,9 +240,8 @@ class MainActivity : AppCompatActivity() {
         with(sharedPreferences.edit()) {
             remove("day_$dayOfMonth")
             remove("day_color_$dayOfMonth")
-            apply() // Ensure this is called to save the changes
+            apply()
         }
-        Log.d("MainActivity", "clearSelectedOption: cleared options for day $dayOfMonth")
     }
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
@@ -258,8 +253,6 @@ class MainActivity : AppCompatActivity() {
         }
         saveSelectedOption(dayOfMonth, text, color)
 
-        // Логирование сохраненной опции
-        Log.d("MainActivity", "updateButton: saved option = $text, color = $color for day $dayOfMonth")
 
         // Обновление общего количества часов
         sumHour += when (text) {
@@ -291,9 +284,8 @@ class MainActivity : AppCompatActivity() {
         with(sharedPreferences.edit()) {
             putString("day_$dayOfMonth", selectedOption)
             putInt("day_color_$dayOfMonth", selectedColor)
-            apply() // Ensure this is called to save the data
+            apply()
         }
-        Log.d("MainActivity", "saveSelectedOption: saved option = $selectedOption, color = $selectedColor for day $dayOfMonth")
     }
 
 
