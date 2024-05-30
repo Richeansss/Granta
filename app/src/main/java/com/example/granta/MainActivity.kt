@@ -39,10 +39,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        dateTextView = findViewById(R.id.dateTextView)
         sumMoneyTextView = findViewById(R.id.sumMoneyTextView)
         sumHourTextView = findViewById(R.id.sumHourTextView)
-        countMonthTextView = findViewById(R.id.countMonthTextView)
 
         buttonToImageRecognizer = findViewById(R.id.buttonToImageRecognizer)
         val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
@@ -93,7 +91,7 @@ class MainActivity : AppCompatActivity() {
         for (dayOfMonth in 1..countDaysOfMonth) {
             val button = Button(this).apply {
                 text = dayOfMonth.toString()
-                setTextColor(Color.WHITE)
+                setTextColor(Color.parseColor("#333333"))
                 val params = GridLayout.LayoutParams()
                 params.width = buttonSize
                 params.height = buttonSize
@@ -101,7 +99,7 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = params
                 tag = "button_$dayOfMonth"
 
-                val color = Color.GRAY
+                val color = Color.parseColor("#d1d1d1")
 
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -116,9 +114,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         restoreButtonValues()
-
-        val formattedDate = currentDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-        countMonthTextView.text = "$countDaysOfMonth"
 
         buttonToImageRecognizer.setOnClickListener {
             val intent = Intent(this, ImageRecognizerActivity::class.java)
@@ -142,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         for (dayOfMonth in 1..countDaysOfMonth) {
             val button = calendarGrid.findViewWithTag<Button>("button_$dayOfMonth")
             val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
-            val savedColor = sharedPreferences.getInt("day_color_$dayOfMonth", Color.GRAY)
+            val savedColor = sharedPreferences.getInt("day_color_$dayOfMonth", Color.parseColor("#CCC5B9"))
 
             if (button != null && savedOption != null) {
                 button.text = savedOption
@@ -163,17 +158,18 @@ class MainActivity : AppCompatActivity() {
             .create()
 
         dialogView.findViewById<Button>(R.id.option_1).setOnClickListener {
-            updateButton(dayOfMonth, button, "12н", Color.RED)
+            updateButton(dayOfMonth, button, "12н", Color.parseColor("#ffc43d"))
+            button.setTextColor(Color.parseColor("#333333"))
             dialog.dismiss()
         }
 
         dialogView.findViewById<Button>(R.id.option_2).setOnClickListener {
-            updateButton(dayOfMonth, button, "12д", Color.GREEN)
+            updateButton(dayOfMonth, button, "12д", Color.parseColor("#161b33"))
             dialog.dismiss()
         }
 
         dialogView.findViewById<Button>(R.id.option_3).setOnClickListener {
-            updateButton(dayOfMonth, button, "24", Color.BLUE)
+            updateButton(dayOfMonth, button, "24", Color.parseColor("#023E8A"))
             dialog.dismiss()
         }
 
@@ -197,8 +193,6 @@ class MainActivity : AppCompatActivity() {
             setColor(Color.GRAY)
         }
 
-        // Логирование удаления
-        Log.d("MainActivity", "clearButton: called for day $dayOfMonth")
 
         // Получение сохраненной опции перед удалением
         val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
@@ -244,41 +238,63 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
-        button.text = text
+    private fun updateButton(dayOfMonth: Int, button: Button, newOption: String, newColor: Int) {
+        // Получение текущей сохраненной опции
+        val currentOption = sharedPreferences.getString("day_$dayOfMonth", null)
+
+        // Логирование текущей сохраненной опции
+        Log.d("MainActivity", "updateButton: current option = $currentOption for day $dayOfMonth")
+
+        // Обновление кнопки
+        button.text = newOption
         button.setTextColor(Color.WHITE)
         button.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(color)
+            setColor(newColor)
         }
-        saveSelectedOption(dayOfMonth, text, color)
+        saveSelectedOption(dayOfMonth, newOption, newColor)
 
-
-        // Обновление общего количества часов
-        sumHour += when (text) {
+        // Вычисление разницы в часах и деньгах
+        val currentHours = when (currentOption) {
             "12н", "12д" -> 12
             "24" -> 24
             else -> 0
         }
 
-        // Обновление общего количества денег
-        sumMoney += when (text) {
+        val newHours = when (newOption) {
+            "12н", "12д" -> 12
+            "24" -> 24
+            else -> 0
+        }
+
+        val currentMoney = when (currentOption) {
             "12н", "12д" -> 2
             "24" -> 4
             else -> 0
         }
 
-        // Сохранение общего количества часов
+        val newMoney = when (newOption) {
+            "12н", "12д" -> 2
+            "24" -> 4
+            else -> 0
+        }
+
+        // Обновление общего количества часов и денег
+        sumHour += newHours - currentHours
+        sumMoney += newMoney - currentMoney
+
+        // Сохранение обновленного значения часов и денег
         with(sharedPreferences.edit()) {
             putInt("sum_hour", sumHour)
             putInt("sum_money", sumMoney)
             apply()
         }
 
-        // Обновление отображения общего количества часов
+        // Обновление отображения общего количества часов и денег
         sumHourTextView.text = sumHour.toString()
         sumMoneyTextView.text = sumMoney.toString()
     }
+
 
     private fun saveSelectedOption(dayOfMonth: Int, selectedOption: String, selectedColor: Int) {
         with(sharedPreferences.edit()) {
