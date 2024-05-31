@@ -1,0 +1,15 @@
+<resources>
+    <!-- Определение стиля для первого TextView -->
+    <style name="ResultTextStyle">
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">#686D76</item> <!-- Яркий оранжевый -->
+        <item name="android:textStyle">italic</item>
+        <item name="android:fontFamily">@font/kreadon</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:shadowColor">#40000000</item> <!-- Полупрозрачная тень -->
+        <item name="android:shadowDx">2</item>
+        <item name="android:shadowDy">2</item>
+        <item name="android:shadowRadius">1</item>
+    </style>
+
+</resources>
