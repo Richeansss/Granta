@@ -20,39 +20,92 @@
             android:columnOrderPreserved="false"
             android:useDefaultMargins="true"/>
 
-    <TextView
-            android:id="@+id/hourTextView"
-            android:layout_width="wrap_content"
+    <LinearLayout
+            android:id="@+id/hourLinearLayout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Часов:"
+            android:orientation="horizontal"
             android:layout_below="@id/calendarGrid"
-            android:textSize="24sp"/>
-    <TextView
-            android:id="@+id/sumHourTextView"
-            android:layout_width="wrap_content"
+            android:layout_marginTop="8dp"
+            android:paddingStart="16dp"> <!-- Увеличено пространство справа -->
+
+        <TextView
+                android:id="@+id/hourTextView"
+                style="@style/ResultTextStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Часов:" />
+
+        <TextView
+                android:id="@+id/sumHourTextView"
+                style="@style/ResultTextStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Кол-во часов:"
+                android:layout_marginStart="4dp"
+                android:paddingEnd="2dp"/><!-- Отступ между TextView -->
+    </LinearLayout>
+
+    <LinearLayout
+            android:id="@+id/moneyLinearLayout"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Кол-во часов:"
-            android:layout_below="@id/hourTextView"
-            android:textSize="24sp"/>
-    <TextView
-            android:id="@+id/moneyTextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Деньги:"
-            android:layout_below="@id/sumHourTextView"
-            android:textSize="24sp"/>
-    <TextView
-            android:id="@+id/sumMoneyTextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Кол-во денег:"
-            android:layout_below="@id/moneyTextView"
-            android:textSize="24sp"/>
+            android:orientation="horizontal"
+            android:layout_below="@id/hourLinearLayout"
+            android:paddingStart="16dp"> <!-- Увеличено пространство справа -->
+
+        <TextView
+                android:id="@+id/moneyTextView"
+                style="@style/ResultTextStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Деньги:" />
+
+        <TextView
+                android:id="@+id/sumMoneyTextView"
+                style="@style/ResultTextStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Кол-во денег:"
+                android:layout_marginStart="4dp"
+                android:paddingEnd="2dp"/> <!-- Отступ между TextView -->
+    </LinearLayout>
+
+
     <Button
             android:id="@+id/buttonToImageRecognizer"
-            android:layout_height="wrap_content"
             android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Распознать по фото"
-            android:layout_below="@id/sumMoneyTextView"/>
+            android:layout_below="@id/moneyLinearLayout"
+            android:background="@drawable/button_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="10dp"
+            android:layout_marginTop="15dp"
+            android:layout_marginStart="25dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"/>
+
+    <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:layout_margin="16dp"
+            android:orientation="vertical">
+
+        <!-- Ваша кнопка -->
+        <Button
+                android:id="@+id/buttonToSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/circle_background"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="4dp"
+                android:drawableStart="@drawable/ic_settings"
+                android:textColor="@android:color/black"/>
+    </LinearLayout>
+
 
 </RelativeLayout>
