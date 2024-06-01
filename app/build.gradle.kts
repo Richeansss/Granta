@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.granta"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -47,7 +47,7 @@ android {
 }
 
 dependencies {
-
+    implementation("com.google.code.gson:gson:2.10")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation ("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.navigation:navigation-compose:2.7.7")
