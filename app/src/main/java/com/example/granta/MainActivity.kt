@@ -6,17 +6,18 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
 import android.widget.*
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.*
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,15 +26,21 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var buttonToImageRecognizer: Button
     private lateinit var buttonToSettings: Button
+    private lateinit var buttonPrevMonth: Button
+    private lateinit var buttonNextMonth: Button
+    private lateinit var currentMonthTextView: TextView
 
     private lateinit var sharedPreferences: SharedPreferences
-    private var sumHour: Int = 0 // Общее количество часов
-    private var sumMoney: Int = 0 // Общее количество денег
+    private var sumHour: Int = 0
+    private var sumMoney: Int = 0
 
-    private var moneyPer24Hours: Int = 4000 // Деньги за 24 часа
-    private val moneyPer12Hours get() = moneyPer24Hours / 2 // Деньги за 12 часов
+    private var moneyPer24Hours: Int = 4000
+    private val moneyPer12Hours get() = moneyPer24Hours / 2
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    private var currentDate = LocalDate.now()
+
+    private var monthlySums: MutableMap<String, Int> = mutableMapOf()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -47,10 +54,41 @@ class MainActivity : AppCompatActivity() {
         sumHourTextView = findViewById(R.id.sumHourTextView)
 
         buttonToImageRecognizer = findViewById(R.id.buttonToImageRecognizer)
-        val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
 
-        val currentDate = LocalDate.now()
-        val countDaysOfMonth = currentDate.lengthOfMonth()
+        buttonPrevMonth = findViewById(R.id.buttonPrevMonth)
+        buttonNextMonth = findViewById(R.id.buttonNextMonth)
+        currentMonthTextView = findViewById(R.id.currentMonthTextView)
+
+        buttonPrevMonth.setOnClickListener {
+            changeMonth(-1)
+        }
+
+        buttonNextMonth.setOnClickListener {
+            changeMonth(1)
+        }
+
+        sharedPreferences = getSharedPreferences("my_preferences", Context.MODE_PRIVATE)
+        loadMonthlySums()
+
+        // Load money per 24 hours from shared preferences
+        moneyPer24Hours = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_money_per_24_hours", 4000)
+
+        buttonToImageRecognizer.setOnClickListener {
+            val intent = Intent(
+                this@MainActivity,
+                ImageRecognizerActivity::class.java
+            )
+            startActivity(intent)
+        }
+
+        updateCalendar()
+    }
+
+    private fun updateCalendar() {
+        currentMonthTextView.text = currentDate.month.getDisplayName(TextStyle.FULL, Locale("ru")) + " " + currentDate.year
+
+        val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
+        calendarGrid.removeAllViews()
 
         val displayMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(displayMetrics)
@@ -61,10 +99,22 @@ class MainActivity : AppCompatActivity() {
         val buttonMargin = 8
 
         val firstDayOfMonth = LocalDate.of(currentDate.year, currentDate.month, 1)
-        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // Первый день недели месяца (1 - понедельник, 7 - воскресенье)
+        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
 
-        sharedPreferences = getSharedPreferences("my_preferences", Context.MODE_PRIVATE)
+        addDayOfWeekHeaders(calendarGrid, buttonSize, buttonMargin)
+        addEmptySpaces(calendarGrid, buttonSize, buttonMargin, firstDayOfWeek)
+        addDayButtons(calendarGrid, buttonSize, buttonMargin)
 
+        restoreButtonValues()
+
+        sumHour = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", 0)
+        sumMoney = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_money", 0)
+
+        sumHourTextView.text = sumHour.toString()
+        sumMoneyTextView.text = sumMoney.toString()
+    }
+
+    private fun addDayOfWeekHeaders(grid: GridLayout, buttonSize: Int, buttonMargin: Int) {
         val daysOfWeek = DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Locale("ru")) }
         for (dayOfWeek in daysOfWeek) {
             val dayTextView = TextView(this).apply {
@@ -78,9 +128,11 @@ class MainActivity : AppCompatActivity() {
                     setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
                 }
             }
-            calendarGrid.addView(dayTextView)
+            grid.addView(dayTextView)
         }
+    }
 
+    private fun addEmptySpaces(grid: GridLayout, buttonSize: Int, buttonMargin: Int, firstDayOfWeek: Int) {
         for (i in 1 until firstDayOfWeek) {
             val emptyView = Space(this).apply {
                 layoutParams = GridLayout.LayoutParams().apply {
@@ -89,48 +141,49 @@ class MainActivity : AppCompatActivity() {
                     setMargins(buttonMargin, buttonMargin, buttonMargin, buttonMargin)
                 }
             }
-            calendarGrid.addView(emptyView)
+            grid.addView(emptyView)
         }
-
-        for (dayOfMonth in 1..countDaysOfMonth) {
-            val button = createDayButton(dayOfMonth, buttonSize, buttonMargin)
-            calendarGrid.addView(button)
-        }
-
-        restoreButtonValues()
-
-        buttonToImageRecognizer.setOnClickListener {
-            val intent = Intent(this, ImageRecognizerActivity::class.java)
-            startActivity(intent)
-        }
-
-        // Получение сохраненного значения общего количества часов и денег
-        sumHour = sharedPreferences.getInt("sum_hour", 0)
-        sumMoney = sharedPreferences.getInt("sum_money", 0)
-
-        // Отображение общего количества часов и денег
-        sumHourTextView.text = sumHour.toString()
-        sumMoneyTextView.text = sumMoney.toString()
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    private fun addDayButtons(grid: GridLayout, buttonSize: Int, buttonMargin: Int) {
+        val countDaysOfMonth = currentDate.lengthOfMonth()
+        for (dayOfMonth in 1..countDaysOfMonth) {
+            val button = createDayButton(dayOfMonth, buttonSize, buttonMargin)
+            grid.addView(button)
+        }
+    }
+
+
+    private fun changeMonth(amount: Int) {
+        currentDate = currentDate.plusMonths(amount.toLong())
+        updateCalendar()
+    }
+
     private fun restoreButtonValues() {
         val calendarGrid: GridLayout = findViewById(R.id.calendarGrid)
         val countDaysOfMonth = getCurrentMonthLength()
 
         for (dayOfMonth in 1..countDaysOfMonth) {
             val buttonTag = "button_$dayOfMonth"
-            val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
-            val savedColor = sharedPreferences.getInt("day_color_$dayOfMonth", Color.parseColor("#CCC5B9"))
+            val savedOption = sharedPreferences.getString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", null)
+            val savedColor = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_day_color_$dayOfMonth", Color.parseColor("#CCC5B9"))
 
             calendarGrid.findViewWithTag<Button>(buttonTag)?.let { button ->
                 if (savedOption != null) {
                     button.text = savedOption
-                    button.setTextColor(Color.WHITE)
                     button.background = GradientDrawable().apply {
                         shape = GradientDrawable.OVAL
                         setColor(savedColor)
                     }
+
+                    // Установка цвета текста в зависимости от значения savedOption
+                    button.setTextColor(
+                        when (savedOption) {
+                            "12н" -> Color.WHITE
+                            "12д" -> Color.parseColor("#333333")
+                            else -> Color.WHITE
+                        }
+                    )
                 }
             }
         }
@@ -179,16 +232,14 @@ class MainActivity : AppCompatActivity() {
             setColor(Color.parseColor("#d1d1d1"))
         }
 
-        // Получение сохраненной опции перед удалением
-        val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
-        Log.d("MainActivity", "clearButton: savedOption = $savedOption for day $dayOfMonth") // Логирование считанного значения
+        val savedOption = sharedPreferences.getString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", null)
+        Log.d("MainActivity", "clearButton: savedOption = $savedOption for day $dayOfMonth")
 
-        // Удаление опций после получения сохраненной опции
         clearSelectedOption(dayOfMonth)
 
         if (savedOption != null) {
-            val oldMoneyPer12Hours = sharedPreferences.getInt("money_per_12_hours", moneyPer12Hours)
-            val oldMoneyPer24Hours = sharedPreferences.getInt("money_per_24_hours", moneyPer24Hours)
+            val oldMoneyPer12Hours = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_money_per_12_hours", moneyPer12Hours)
+            val oldMoneyPer24Hours = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_money_per_24_hours", moneyPer24Hours)
 
             sumHour -= when (savedOption) {
                 "12н", "12д" -> 12
@@ -202,14 +253,12 @@ class MainActivity : AppCompatActivity() {
                 else -> 0
             }
 
-            // Сохранение обновленного значения часов и денег
             with(sharedPreferences.edit()) {
-                putInt("sum_hour", sumHour)
-                putInt("sum_money", sumMoney)
+                putInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", sumHour)
+                putInt("${currentDate.year}_${currentDate.monthValue}_sum_money", sumMoney)
                 apply()
             }
 
-            // Обновление отображения общего количества часов и денег
             sumHourTextView.text = sumHour.toString()
             sumMoneyTextView.text = sumMoney.toString()
         } else {
@@ -220,20 +269,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearSelectedOption(dayOfMonth: Int) {
         with(sharedPreferences.edit()) {
-            remove("day_$dayOfMonth")
-            remove("day_color_$dayOfMonth")
+            remove("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth")
+            remove("${currentDate.year}_${currentDate.monthValue}_day_color_$dayOfMonth")
             apply()
         }
     }
 
     private fun updateButton(dayOfMonth: Int, button: Button, newOption: String, newColor: Int) {
-        // Получение текущей сохраненной опции
-        val currentOption = sharedPreferences.getString("day_$dayOfMonth", null)
-
-        // Логирование текущей сохраненной опции
+        val currentOption = sharedPreferences.getString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", null)
         Log.d("MainActivity", "updateButton: current option = $currentOption for day $dayOfMonth")
 
-        // Обновление кнопки
         button.text = newOption
         button.setTextColor(Color.WHITE)
         button.background = GradientDrawable().apply {
@@ -269,35 +314,32 @@ class MainActivity : AppCompatActivity() {
             else -> 0
         }
 
-        // Обновление общего количества часов и денег
         sumHour += newHours - currentHours
         sumMoney += newMoney - currentMoney
 
-        // Сохранение обновленного значения часов и денег
         with(sharedPreferences.edit()) {
-            putInt("sum_hour", sumHour)
-            putInt("sum_money", sumMoney)
+            putInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", sumHour)
+            putInt("${currentDate.year}_${currentDate.monthValue}_sum_money", sumMoney)
             apply()
         }
 
-        // Обновление отображения общего количества часов и денег
         sumHourTextView.text = sumHour.toString()
         sumMoneyTextView.text = sumMoney.toString()
+
+        monthlySums["${currentDate.year}_${currentDate.monthValue}"] = sumMoney
+        saveMonthlySums()
     }
-
-
 
     private fun saveSelectedOption(dayOfMonth: Int, selectedOption: String, selectedColor: Int) {
         with(sharedPreferences.edit()) {
-            putString("day_$dayOfMonth", selectedOption)
-            putInt("day_color_$dayOfMonth", selectedColor)
+            putString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", selectedOption)
+            putInt("${currentDate.year}_${currentDate.monthValue}_day_color_$dayOfMonth", selectedColor)
             apply()
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentMonthLength(): Int {
-        return LocalDate.now().lengthOfMonth()
+        return currentDate.lengthOfMonth()
     }
 
     private fun createDayButton(dayOfMonth: Int, buttonSize: Int, buttonMargin: Int): Button {
@@ -320,45 +362,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun showSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
         val moneyPer24HoursEditText = dialogView.findViewById<EditText>(R.id.moneyPer24HoursEditText)
         val saveButton = dialogView.findViewById<Button>(R.id.saveButton)
 
-        // Получение текущего значения moneyPer24Hours
-        val currentMoneyPer24Hours = sharedPreferences.getInt("money_per_24_hours", 4000)
-        moneyPer24HoursEditText.setText(currentMoneyPer24Hours.toString())
+        moneyPer24HoursEditText.setText(moneyPer24Hours.toString())
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
             .create()
 
         saveButton.setOnClickListener {
-            val newMoneyPer24Hours = moneyPer24HoursEditText.text.toString().toInt()
+            try {
+                val newMoneyPer24Hours = moneyPer24HoursEditText.text.toString().toInt()
+                moneyPer24Hours = newMoneyPer24Hours
 
-            // Обновить переменную moneyPer24Hours
-            moneyPer24Hours = newMoneyPer24Hours
+                with(sharedPreferences.edit()) {
+                    putInt("${currentDate.year}_${currentDate.monthValue}_money_per_24_hours", newMoneyPer24Hours)
+                    putInt("${currentDate.year}_${currentDate.monthValue}_money_per_12_hours", newMoneyPer24Hours / 2)
+                    apply()
+                }
 
-            // Сохранение новых значений денег за 12 и 24 часа
-            with(sharedPreferences.edit()) {
-                putInt("money_per_24_hours", newMoneyPer24Hours)
-                putInt("money_per_12_hours", newMoneyPer24Hours / 2)
-                apply()
+                recalculateSumMoney()
+
+                dialog.dismiss()
+            } catch (e: NumberFormatException) {
+                Toast.makeText(this, "Введите корректное значение", Toast.LENGTH_SHORT).show()
             }
-
-            // Пересчитать сумму денег на основе нового значения moneyPer24Hours
-            recalculateSumMoney()
-
-            dialog.dismiss()
         }
 
         dialog.show()
     }
 
-
-
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun recalculateSumMoney() {
         sumMoney = 0
         sumHour = 0
@@ -367,7 +403,7 @@ class MainActivity : AppCompatActivity() {
         val currentMoneyPer24Hours = moneyPer24Hours
 
         for (dayOfMonth in 1..getCurrentMonthLength()) {
-            val savedOption = sharedPreferences.getString("day_$dayOfMonth", null)
+            val savedOption = sharedPreferences.getString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", null)
             sumMoney += when (savedOption) {
                 "12н", "12д" -> currentMoneyPer12Hours
                 "24" -> currentMoneyPer24Hours
@@ -380,15 +416,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Сохранение обновленного значения часов и денег
         with(sharedPreferences.edit()) {
-            putInt("sum_money", sumMoney)
-            putInt("sum_hour", sumHour)
+            putInt("${currentDate.year}_${currentDate.monthValue}_sum_money", sumMoney)
+            putInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", sumHour)
             apply()
         }
 
-        // Обновление отображения общего количества часов и денег
         sumMoneyTextView.text = sumMoney.toString()
         sumHourTextView.text = sumHour.toString()
+
+        monthlySums["${currentDate.year}_${currentDate.monthValue}"] = sumMoney
+        saveMonthlySums()
+    }
+
+    private fun loadMonthlySums() {
+        val json = sharedPreferences.getString("monthly_sums", null)
+        if (json != null) {
+            val type = object : TypeToken<MutableMap<String, Int>>() {}.type
+            monthlySums = Gson().fromJson(json, type)
+        }
+    }
+
+    private fun saveMonthlySums() {
+        val json = Gson().toJson(monthlySums)
+        with(sharedPreferences.edit()) {
+            putString("monthly_sums", json)
+            apply()
+        }
     }
 }
