@@ -15,6 +15,13 @@
             android:gravity="center"
             android:paddingBottom="16dp"/>
 
+    <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Введите кол-во денег за 24 часа"
+            android:textSize="16sp"
+            android:paddingBottom="8dp"/>
+
     <EditText
             android:id="@+id/moneyPer24HoursEditText"
             android:layout_width="match_parent"

@@ -47,6 +47,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.code.gson:gson:2.10")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation ("androidx.exifinterface:exifinterface:1.3.7")
