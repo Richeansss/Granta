@@ -15,11 +15,14 @@
 
         <Button
                 android:id="@+id/buttonPrevMonth"
-                android:layout_width="wrap_content"
+                android:layout_width="65dp"
                 android:layout_height="51dp"
                 android:layout_marginEnd="-4dp"
                 android:backgroundTint="@color/colorHorizontalPrimary"
-                android:text="←" />
+                android:drawableStart="@drawable/ic_arrow_back"
+                android:drawablePadding="10dp"
+                android:gravity="center_vertical|start"
+                android:text="" />
 
         <TextView
                 android:id="@+id/currentMonthTextView"
@@ -33,11 +36,14 @@
 
         <Button
                 android:id="@+id/buttonNextMonth"
-                android:layout_width="wrap_content"
-                android:layout_height="50dp"
+                android:layout_width="65dp"
+                android:layout_height="51dp"
                 android:layout_marginStart="-4dp"
                 android:backgroundTint="@color/colorHorizontalPrimary"
-                android:text="→" />
+                android:drawableEnd="@drawable/ic_arrow_forward"
+                android:drawablePadding="10dp"
+                android:gravity="center_vertical|end"
+                android:text="" />
     </LinearLayout>
 
     <GridLayout
@@ -131,7 +137,6 @@
             android:layout_margin="16dp"
             android:orientation="vertical">
 
-        <!-- Ваша кнопка -->
         <Button
                 android:id="@+id/buttonToSettings"
                 android:layout_width="wrap_content"
@@ -140,7 +145,7 @@
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:padding="4dp"
-                android:drawableStart="@drawable/ic_settings"
+                android:drawableStart="@drawable/ic_settings_circle"
                 android:textColor="@android:color/black"/>
     </LinearLayout>
 
