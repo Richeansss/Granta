@@ -35,6 +35,7 @@ android {
     }
     buildFeatures {
         compose = true
+        viewBinding = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
@@ -45,6 +46,7 @@ android {
         }
     }
 }
+
 
 dependencies {
     implementation("com.google.android.material:material:1.12.0")
