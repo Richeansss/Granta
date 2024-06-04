@@ -138,7 +138,6 @@ class ImageRecognizerActivity : AppCompatActivity() {
             !isPhotoTaken && photoUri == null -> {
                 imageRecognitionMenu(
                     onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
-                    onRecognizeText = { /* No action needed */ }
                 )
             }
             isPhotoTaken -> {

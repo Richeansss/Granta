@@ -78,7 +78,7 @@ fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTak
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             item {
                 bitmap?.let {
@@ -166,7 +166,7 @@ fun CameraScreen(onTakePhoto: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(top = 16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -200,19 +200,16 @@ fun RecognizeTextButton(onClick: () -> Unit) {
 }
 
 @Composable
-fun imageRecognitionMenu(onTakePhoto: () -> Unit, onRecognizeText: () -> Unit) {
+fun imageRecognitionMenu(onTakePhoto: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Button(onClick = onTakePhoto) {
             Text("Сделать фотографию")
-        }
-        Button(onClick = onRecognizeText) {
-            Text("Распознать текст")
         }
     }
 }

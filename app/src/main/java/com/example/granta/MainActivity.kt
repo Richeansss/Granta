@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
     private fun changeMonth(amount: Int) {
         currentDate = currentDate.plusMonths(amount.toLong())
 
-        // Load money per 24 hours for the new month
+        // Загрузка кол-ва денег за 24 часа сдледующего месяца
         moneyPer24Hours = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_money_per_24_hours", 4000)
 
         updateCalendar()
