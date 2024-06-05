@@ -3,8 +3,6 @@ package com.example.granta
 import android.content.Context
 import android.graphics.*
 import android.util.Log
-import android.util.SparseArray
-import com.google.android.gms.vision.text.TextBlock
 import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 import java.io.IOException
@@ -206,61 +204,6 @@ class TextRecognizer(private val context: Context) {
         tessBaseAPI.end()
     }
 
-    fun drawTextBounds(bitmap: Bitmap, textBlocks: SparseArray<TextBlock>): Bitmap {
-        val paint = Paint()
-        paint.color = Color.RED
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 5f
-
-        val canvas = Canvas(bitmap)
-        for (i in 0 until textBlocks.size()) {
-            val textBlock = textBlocks.valueAt(i)
-            val boundingBox = textBlock.boundingBox
-            canvas.drawRect(boundingBox, paint)
-        }
-        return bitmap
-    }
-
-    fun drawTextBoundsOnImage(bitmap: Bitmap, textBlocks: SparseArray<TextBlock>): Bitmap {
-        val copiedBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true) // Создаем копию изображения
-        val paint = Paint()
-        paint.color = Color.RED
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 5f
-
-        val canvas = Canvas(copiedBitmap)
-        for (i in 0 until textBlocks.size()) {
-            val textBlock = textBlocks.valueAt(i)
-            val boundingBox = textBlock.boundingBox
-            canvas.drawRect(boundingBox, paint)
-        }
-        return copiedBitmap
-    }
-
-    companion object {
-        fun containsNumbersFrom1To31Sequence(text: String): Boolean {
-            val numbers = mutableListOf<Int>()
-            val words = text.split("\\s+".toRegex())
-            for (word in words) {
-                try {
-                    val number = word.toInt()
-                    if (number in 1..31) {
-                        numbers.add(number)
-                    }
-                } catch (e: NumberFormatException) {
-                    continue
-                }
-            }
-
-            for (i in 0 until numbers.size - 2) {
-                if (numbers[i + 1] == numbers[i] + 1 && numbers[i + 2] == numbers[i] + 2) {
-                    return true
-                }
-            }
-
-            return false
-        }
-    }
 }
 
 
