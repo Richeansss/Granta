@@ -9,5 +9,6 @@
     <color name="white">#FFFFFFFF</color>
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorHorizontalPrimary">#F6F5F2</color>
-    <color name="colorHorizontalSecondary">#F0EBE3</color>
+    <color name="colorHorizontalSecondary">#D8D9DA</color>
+    <color name="mainBackGround">#EEEEEE</color>
 </resources>
