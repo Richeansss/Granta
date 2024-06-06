@@ -227,6 +227,17 @@ class MainActivity : AppCompatActivity() {
         button.text = dayOfMonth.toString()
         button.tag = "button_$dayOfMonth"
 
+        // Определение текущей даты
+        val calendar = Calendar.getInstance()
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+
+        // Увеличение размера кнопки, если это текущий день
+        if (dayOfMonth == currentDay) {
+            button.scaleX = 1.1f
+            button.scaleY = 1.1f
+            button.textSize = 22f
+        }
+
         button.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(Color.parseColor("#d1d1d1"))
@@ -246,6 +257,8 @@ class MainActivity : AppCompatActivity() {
         }
         return button
     }
+
+
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
         button.text = text
