@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -124,12 +125,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun addDayButtons(grid: GridLayout, buttonSize: Int, buttonMargin: Int) {
         val countDaysOfMonth = currentDate.lengthOfMonth()
+        val displayedMonth = currentDate.monthValue - 1 // Преобразование от 1-12 к 0-11
+        val displayedYear = currentDate.year
         for (dayOfMonth in 1..countDaysOfMonth) {
-            val button = createDayButton(dayOfMonth, buttonSize, buttonMargin)
+            val button = createDayButton(dayOfMonth, buttonSize, buttonMargin, displayedMonth, displayedYear)
             grid.addView(button)
         }
     }
-
 
     private fun changeMonth(amount: Int) {
         currentDate = currentDate.plusMonths(amount.toLong())
@@ -208,21 +210,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearButton(dayOfMonth: Int, button: Button) {
-        button.text = dayOfMonth.toString()
-        button.setTextColor(Color.parseColor("#333333"))
-        button.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#d1d1d1"))
+        // Определение текущей даты
+        val calendar = Calendar.getInstance()
+        val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+
+        // Цвет и форматирование текста для текущего дня
+        if (dayOfMonth == currentDay) {
+            button.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#F27BBD")) // Цвет фона для текущего дня
+            }
+        } else {
+            button.setTextColor(Color.parseColor("#333333")) // Цвет текста для остальных дней
+            button.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#d1d1d1")) // Цвет фона для остальных дней
+            }
         }
 
+        // Установка текста кнопки
+        button.text = dayOfMonth.toString()
+
+        // Логирование сохраненной опции (если необходимо)
         val savedOption = sharedPreferences.getString("${currentDate.year}_${currentDate.monthValue}_day_$dayOfMonth", null)
         Log.d("MainActivity", "clearButton: savedOption = $savedOption for day $dayOfMonth")
 
+        // Очистка данных из SharedPreferences
         clearDayInSharedPreferences(dayOfMonth)
+
+        // Обновление суммы часов и денег
         updateSumHourAndMoney()
     }
 
-    private fun createDayButton(dayOfMonth: Int, buttonSize: Int, buttonMargin: Int): Button {
+
+    private fun createDayButton(dayOfMonth: Int, buttonSize: Int, buttonMargin: Int, displayedMonth: Int, displayedYear: Int): Button {
         val button = Button(this)
         button.text = dayOfMonth.toString()
         button.tag = "button_$dayOfMonth"
@@ -230,17 +251,27 @@ class MainActivity : AppCompatActivity() {
         // Определение текущей даты
         val calendar = Calendar.getInstance()
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+
+        // Цвет фона кнопки
+        val backgroundColor = if (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
+            Color.parseColor("#F27BBD") // Цвет для текущего дня
+        } else {
+            Color.parseColor("#d1d1d1") // Цвет для остальных дней
+        }
 
         // Увеличение размера кнопки, если это текущий день
-        if (dayOfMonth == currentDay) {
+        if (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
             button.scaleX = 1.1f
             button.scaleY = 1.1f
-            button.textSize = 22f
+            button.textSize = 20f
+            button.setTypeface(button.typeface, Typeface.BOLD)
         }
 
         button.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#d1d1d1"))
+            setColor(backgroundColor)
         }
 
         button.setTextColor(Color.parseColor("#333333"))
@@ -257,7 +288,6 @@ class MainActivity : AppCompatActivity() {
         }
         return button
     }
-
 
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {

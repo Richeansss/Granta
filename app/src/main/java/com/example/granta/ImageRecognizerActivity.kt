@@ -209,12 +209,12 @@ class ImageRecognizerActivity : AppCompatActivity() {
     @Composable
     fun CameraContent(
         onPhotoTaken: (Uri) -> Unit,
-        onRectChanged: (android.graphics.Rect, String) -> Unit
+        onRectChanged: (Rect, String) -> Unit
     ) {
         val context = LocalContext.current
         val previewView = remember { PreviewView(context) }
 
-        var currentRect by remember { mutableStateOf(android.graphics.Rect(0, 0, 0, 0)) }
+        var currentRect by remember { mutableStateOf(Rect(0, 0, 0, 0)) }
         var currentOrientation by remember { mutableStateOf("Undefined") }
 
         LaunchedEffect(Unit) {
