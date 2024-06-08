@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
@@ -22,34 +20,35 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.LifecycleOwner
+import com.example.granta.camera.CameraUtils
+import com.example.granta.camera.CameraViewModel
+import com.example.granta.recognition.TextRecognizer
 import com.example.granta.ui.theme.GrantaTheme
-import java.io.File
-import java.io.FileOutputStream
-import java.lang.Integer.max
-import java.lang.Integer.min
-import java.text.SimpleDateFormat
-import java.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 class ImageRecognizerActivity : AppCompatActivity() {
 
@@ -62,7 +61,6 @@ class ImageRecognizerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_recognizer)
-
 
         textRecognizer = TextRecognizer(this)
         imageCapture = ImageCapture.Builder().build()
@@ -132,6 +130,7 @@ class ImageRecognizerActivity : AppCompatActivity() {
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
+
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -158,49 +157,83 @@ class ImageRecognizerActivity : AppCompatActivity() {
         }
     }
 
-
     @Composable
     fun MainScreen(photoUri: Uri? = null) {
         val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
 
         when {
             !isPhotoTaken && photoUri == null -> {
-                imageRecognitionMenu(
-                    onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
-                    onSelectPhoto = { openFilePicker() }
-                )
+                displayMenu()
             }
+
             isPhotoTaken -> {
-                CameraContent(
-                    onPhotoTaken = { uri ->
-                        setContent {
-                            GrantaTheme {
-                                Surface(
-                                    modifier = Modifier.fillMaxSize(),
-                                    color = MaterialTheme.colorScheme.background
-                                ) {
-                                    MainScreen(photoUri = uri)
-                                }
-                            }
-                        }
-                        cameraViewModel.setPhotoTaken(false)
-                    },
-                    onRectChanged = { rect, orientation ->
-                        Log.d("MainActivity", "Rect: $rect, Orientation: $orientation")
-                    }
-                )
+                displayCameraContent()
             }
+
             photoUri != null -> {
-                imageRecognitionScreen(textRecognizer, photoUri) {
-                    setContent {
-                        GrantaTheme {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.background
-                            ) {
-                                MainScreen()
-                            }
+                displayImageRecognitionScreen(photoUri)
+            }
+        }
+    }
+
+    @Composable
+    fun displayMenu() {
+        imageRecognitionMenu(
+            onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
+            onSelectPhoto = { openFilePicker() }
+        )
+    }
+
+    @Composable
+    fun imageRecognitionMenu(onTakePhoto: () -> Unit, onSelectPhoto: () -> Unit) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Button(onClick = onTakePhoto) {
+                Text("Сделать фотографию")
+            }
+            Button(onClick = onSelectPhoto) {
+                Text("Выбрать фотографию")
+            }
+        }
+    }
+
+    @Composable
+    fun displayCameraContent() {
+        CameraContent(
+            onPhotoTaken = { uri ->
+                setContent {
+                    GrantaTheme {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            MainScreen(photoUri = uri)
                         }
+                    }
+                }
+                cameraViewModel.setPhotoTaken(false)
+            },
+            onRectChanged = { rect, orientation ->
+                Log.d("ImageRecognitionActivity", "Rect: $rect, Orientation: $orientation")
+            }
+        )
+    }
+
+    @Composable
+    fun displayImageRecognitionScreen(photoUri: Uri) {
+        imageRecognitionScreen(textRecognizer, photoUri) {
+            setContent {
+                GrantaTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        MainScreen()
                     }
                 }
             }
@@ -210,7 +243,7 @@ class ImageRecognizerActivity : AppCompatActivity() {
     @Composable
     fun RectangularOverlay(
         modifier: Modifier = Modifier,
-        onRectChanged: (android.graphics.Rect, String) -> Unit
+        onRectChanged: (Rect, String) -> Unit
     ) {
         val configuration = LocalConfiguration.current
         val (rectWidth: Dp, rectHeight: Dp) = when (configuration.orientation) {
@@ -242,7 +275,7 @@ class ImageRecognizerActivity : AppCompatActivity() {
                 )
 
                 onRectChanged(
-                    android.graphics.Rect(
+                    Rect(
                         rectLeft.toPx().toInt(),
                         rectTop.toPx().toInt(),
                         rectRight.toPx().toInt(),
@@ -265,7 +298,7 @@ class ImageRecognizerActivity : AppCompatActivity() {
         var currentRect by remember { mutableStateOf(Rect(0, 0, 0, 0)) }
         var currentOrientation by remember { mutableStateOf("Undefined") }
 
-        LaunchedEffect(Unit) {
+        DisposableEffect(Unit) {
             val cameraProvider = ProcessCameraProvider.getInstance(context)
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -286,6 +319,9 @@ class ImageRecognizerActivity : AppCompatActivity() {
                     Log.e("CameraContent", "Error starting camera: ${exc.message}")
                 }
             }, ContextCompat.getMainExecutor(context))
+
+            onDispose {
+            }
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -297,12 +333,14 @@ class ImageRecognizerActivity : AppCompatActivity() {
             }
             CaptureButton(
                 onClick = {
-                    takePhoto(context, onPhotoTaken, currentRect, currentOrientation, previewView.display.rotation)
+                    takePhoto(context, onPhotoTaken, currentRect)
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }
+
+
 
     @Composable
     fun CaptureButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -315,10 +353,8 @@ class ImageRecognizerActivity : AppCompatActivity() {
         context: Context,
         onPhotoTaken: (Uri) -> Unit,
         rect: Rect,
-        orientation: String,
-        rotation: Int
     ) {
-        val photoFile = createFile(context)
+        val photoFile = CameraUtils.createFile(context)
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
         imageCapture.takePicture(
@@ -327,106 +363,192 @@ class ImageRecognizerActivity : AppCompatActivity() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     val savedUri = Uri.fromFile(photoFile)
-                    val croppedBitmap = cropImage(savedUri, rect, context, orientation)
+                    val croppedBitmap = CameraUtils.cropImage(savedUri, rect, context)
                     if (croppedBitmap != null) {
-                        val croppedFile = saveBitmapToFile(croppedBitmap, context)
+                        val croppedFile = CameraUtils.saveBitmapToFile(croppedBitmap, context)
                         onPhotoTaken(Uri.fromFile(croppedFile))
-                        showToast(context, "Photo saved: $savedUri")
+                        CameraUtils.showToast(context, "Photo saved: $savedUri")
                     } else {
-                        showToast(context, "Error cropping photo: cropped bitmap is null")
+                        CameraUtils.showToast(context, "Error cropping photo: cropped bitmap is null")
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
-                    showToast(context, "Error saving photo: ${exception.message}")
+                    CameraUtils.showToast(context, "Error saving photo: ${exception.message}")
                 }
             }
         )
     }
 
-    private fun cropImage(uri: Uri, rect: Rect, context: Context, orientation: String): Bitmap? {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
+    @Composable
+    fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTakePhoto: () -> Unit) {
+        var recognizedText by remember { mutableStateOf("") }
+        var isLoading by remember { mutableStateOf(false) }
+        var isTextRecognized by remember { mutableStateOf(false) }
+        var recognitionTimeSeconds by remember { mutableStateOf(0L) }
+        var bitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-            if (originalBitmap == null) {
-                Log.e("CropImage", "Failed to load the original image.")
-                return null
+        val context = LocalContext.current as ImageRecognizerActivity
+
+        // Загрузка изображения по Uri
+        if (photoUri != null && bitmap == null) {
+            bitmap = CameraUtils.loadBitmapFromUri(context, photoUri)
+        }
+
+        LaunchedEffect(isLoading) {
+            if (isLoading) {
+                val startTime = System.currentTimeMillis()
+                recognizedText = withContext(Dispatchers.IO) {
+                    bitmap?.let { textRecognizer.recognizeText(it) } ?: ""
+                }
+                val endTime = System.currentTimeMillis()
+                val recognitionTimeMillis = endTime - startTime
+                recognitionTimeSeconds = recognitionTimeMillis / 1000
+                isLoading = false
+                isTextRecognized = true
+            }
+        }
+
+        LaunchedEffect(isLoading) {
+            while (isLoading) {
+                delay(1000)
+                recognitionTimeSeconds++
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Время распознавания: $recognitionTimeSeconds сек",
+                    style = TextStyle(fontSize = 14.sp),
+                    modifier = Modifier.weight(1f)
+                )
             }
 
-            val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
-            val rotationAngle = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                else -> 0f
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                item {
+                    bitmap?.let {
+                        ImageSection(it)
+                    }
+                }
+                item {
+                    RecognizeTextButton {
+                        isLoading = true
+                        recognitionTimeSeconds = 0 // Сброс времени до начала распознавания
+                    }
+                }
+                if (isLoading) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Распознавание текста...",
+                                style = TextStyle(fontSize = 14.sp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    item {
+                        loadingIndicator()
+                    }
+                }
+                if (isTextRecognized) {
+                    item {
+                        Text(
+                            text = "Распознанный текст:",
+                            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        Text(
+                            text = recognizedText,
+                            style = TextStyle(fontSize = 14.sp),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
             }
+        }
 
-            val matrix = Matrix().apply { postRotate(rotationAngle) }
-            val rotatedBitmap = Bitmap.createBitmap(
-                originalBitmap,
-                0,
-                0,
-                originalBitmap.width,
-                originalBitmap.height,
-                matrix,
-                true
+        Box(
+        ) {
+            CameraMenu(onTakePhoto)
+        }
+    }
+
+    @Composable
+    fun CameraMenu(onTakePhoto: () -> Unit) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp), // Добавляем отступы
+            verticalArrangement = Arrangement.Bottom, // Размещаем элементы внизу
+            horizontalAlignment = Alignment.Start // Размещаем элементы слева
+        ) {
+            Button(
+                onClick = onTakePhoto,
+                modifier = Modifier
+                    .wrapContentWidth() // Подгоняет ширину под содержимое
+                    .padding(end = 16.dp) // Добавляем отступ справа
+            ) {
+                Text("Назад")
+            }
+        }
+    }
+
+
+    @Composable
+    fun ImageSection(bitmap: Bitmap) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            elevation = CardDefaults.elevatedCardElevation()
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize()
             )
-
-            val screenWidth = context.resources.displayMetrics.widthPixels
-            val screenHeight = context.resources.displayMetrics.heightPixels
-            val screenAspectRatio = screenWidth.toFloat() / screenHeight
-            val imageAspectRatio = rotatedBitmap.width.toFloat() / rotatedBitmap.height
-            val scaleFactor = if (screenAspectRatio > imageAspectRatio) {
-                rotatedBitmap.width.toFloat() / screenWidth
-            } else {
-                rotatedBitmap.height.toFloat() / screenHeight
-            }
-
-            val scaledRectWidth = (rect.width() * scaleFactor).toInt()
-            val scaledRectHeight = (rect.height() * scaleFactor).toInt()
-            val centerX = rotatedBitmap.width / 2
-            val centerY = rotatedBitmap.height / 2
-            val correctedLeft = max(0, centerX - scaledRectWidth / 2)
-            val correctedTop = max(0, centerY - scaledRectHeight / 2)
-            val correctedRight = min(rotatedBitmap.width, centerX + scaledRectWidth / 2)
-            val correctedBottom = min(rotatedBitmap.height, centerY + scaledRectHeight / 2)
-
-            if (correctedTop >= correctedBottom || correctedLeft >= correctedRight) {
-                Log.e("CropImage", "Incorrect crop coordinates: top >= bottom or left >= right")
-                return null
-            }
-
-            Bitmap.createBitmap(rotatedBitmap, correctedLeft, correctedTop, correctedRight - correctedLeft, correctedBottom - correctedTop)
-        } catch (e: Exception) {
-            Log.e("CropImage", "Error cropping image: ${e.message}", e)
-            null
         }
     }
 
-    private fun saveBitmapToFile(bitmap: Bitmap, context: Context): File {
-        val photoFile = createFile(context, "_cropped")
-        val outputStream = FileOutputStream(photoFile)
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        outputStream.flush()
-        outputStream.close()
-        return photoFile
-    }
-
-    private fun createFile(context: Context, suffix: String = ""): File {
-        val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
-            File(it, context.resources.getString(R.string.app_name)).apply { mkdirs() }
+    @Composable
+    fun RecognizeTextButton(onClick: () -> Unit) {
+        Button(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp) // Добавляем отступ сверху
+        ) {
+            Text("Распознать текст")
         }
-        val directory = mediaDir ?: context.filesDir
-        return File(directory, SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + suffix + ".jpg")
     }
 
-    private fun showToast(context: Context, message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-    }
-
-    companion object {
-        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+    @Composable
+    fun loadingIndicator() {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(8.dp)
+            )
+        }
     }
 }

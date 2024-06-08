@@ -1,4 +1,4 @@
-package com.example.granta
+package com.example.granta.camera
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
