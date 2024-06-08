@@ -1,6 +1,8 @@
 package com.example.granta
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -54,6 +56,8 @@ class ImageRecognizerActivity : AppCompatActivity() {
     private lateinit var textRecognizer: TextRecognizer
     private lateinit var imageCapture: ImageCapture
     private val cameraViewModel: CameraViewModel by viewModels()
+
+    private val pickImageRequestCode = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,22 +132,57 @@ class ImageRecognizerActivity : AppCompatActivity() {
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
+    private fun openFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+        }
+        startActivityForResult(intent, pickImageRequestCode)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == pickImageRequestCode && resultCode == Activity.RESULT_OK) {
+            data?.data?.also { uri ->
+                setContent {
+                    GrantaTheme {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            MainScreen(photoUri = uri)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     @Composable
-    fun MainScreen() {
-        var photoUri by remember { mutableStateOf<Uri?>(null) }
+    fun MainScreen(photoUri: Uri? = null) {
         val isPhotoTaken by cameraViewModel.isPhotoTaken.collectAsState()
 
         when {
             !isPhotoTaken && photoUri == null -> {
                 imageRecognitionMenu(
                     onTakePhoto = { cameraViewModel.setPhotoTaken(true) },
+                    onSelectPhoto = { openFilePicker() }
                 )
             }
             isPhotoTaken -> {
                 CameraContent(
                     onPhotoTaken = { uri ->
-                        photoUri = uri
+                        setContent {
+                            GrantaTheme {
+                                Surface(
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = MaterialTheme.colorScheme.background
+                                ) {
+                                    MainScreen(photoUri = uri)
+                                }
+                            }
+                        }
                         cameraViewModel.setPhotoTaken(false)
                     },
                     onRectChanged = { rect, orientation ->
@@ -153,7 +192,16 @@ class ImageRecognizerActivity : AppCompatActivity() {
             }
             photoUri != null -> {
                 imageRecognitionScreen(textRecognizer, photoUri) {
-                    photoUri = null
+                    setContent {
+                        GrantaTheme {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.background
+                            ) {
+                                MainScreen()
+                            }
+                        }
+                    }
                 }
             }
         }
