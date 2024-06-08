@@ -1,4 +1,4 @@
-package com.example.granta
+package com.example.granta.recognition
 
 import android.content.Context
 import android.graphics.*
