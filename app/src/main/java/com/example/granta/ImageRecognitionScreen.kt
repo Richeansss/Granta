@@ -58,6 +58,8 @@ fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTak
         }
     }
 
+
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -84,9 +86,6 @@ fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTak
                 bitmap?.let {
                     ImageSection(it)
                 }
-            }
-            item {
-                CameraScreen(onTakePhoto)
             }
             item {
                 RecognizeTextButton {
@@ -127,6 +126,11 @@ fun imageRecognitionScreen(textRecognizer: TextRecognizer, photoUri: Uri?, onTak
             }
         }
     }
+
+    Box(
+    ) {
+        CameraMenu(onTakePhoto)
+    }
 }
 
 fun loadBitmapFromUri(context: Context, uri: Uri): Bitmap? {
@@ -162,16 +166,21 @@ fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
 }
 
 @Composable
-fun CameraScreen(onTakePhoto: () -> Unit) {
+fun CameraMenu(onTakePhoto: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(16.dp), // Добавляем отступы
+        verticalArrangement = Arrangement.Bottom, // Размещаем элементы внизу
+        horizontalAlignment = Alignment.Start // Размещаем элементы слева
     ) {
-        Button(onClick = onTakePhoto, modifier = Modifier.fillMaxWidth()) {
-            Text("Сделать фотографию")
+        Button(
+            onClick = onTakePhoto,
+            modifier = Modifier
+                .wrapContentWidth() // Подгоняет ширину под содержимое
+                .padding(end = 16.dp) // Добавляем отступ справа
+        ) {
+            Text("Назад")
         }
     }
 }
@@ -194,13 +203,18 @@ fun ImageSection(bitmap: Bitmap) {
 
 @Composable
 fun RecognizeTextButton(onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp) // Добавляем отступ сверху
+    ) {
         Text("Распознать текст")
     }
 }
 
 @Composable
-fun imageRecognitionMenu(onTakePhoto: () -> Unit) {
+fun imageRecognitionMenu(onTakePhoto: () -> Unit, onSelectPhoto: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -211,8 +225,13 @@ fun imageRecognitionMenu(onTakePhoto: () -> Unit) {
         Button(onClick = onTakePhoto) {
             Text("Сделать фотографию")
         }
+        Button(onClick = onSelectPhoto) {
+            Text("Выбрать фотографию")
+        }
     }
 }
+
+
 
 @Composable
 fun loadingIndicator() {

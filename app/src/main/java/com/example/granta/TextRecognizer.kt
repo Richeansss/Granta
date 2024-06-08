@@ -4,6 +4,10 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import com.googlecode.tesseract.android.TessBaseAPI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
@@ -49,16 +53,29 @@ class TextRecognizer(private val context: Context) {
         }
     }
 
-    fun recognizeText(bitmap: Bitmap, whitelist: String = ""): String {
-        // Увеличение размера изображения до 2x
-        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, bitmap.width * 2, bitmap.height * 2, false)
-        val preprocessedBitmap = preprocessBitmap(scaledBitmap)
-        tessBaseAPI.setImage(preprocessedBitmap)
-        if (whitelist.isNotEmpty()) {
-            tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, whitelist)
+    suspend fun recognizeText(bitmap: Bitmap, whitelist: String = ""): String {
+        return coroutineScope {
+            // Выполняем увеличение размера изображения асинхронно
+            val scaledBitmap = async(Dispatchers.Default) {
+                Bitmap.createScaledBitmap(bitmap, bitmap.width * 2, bitmap.height * 2, false)
+            }.await()
+
+            // Предобрабатываем изображение и распознаем текст
+            val preprocessedText = withContext(Dispatchers.Default) {
+                val preprocessedBitmap = preprocessBitmap(scaledBitmap)
+                tessBaseAPI.setImage(preprocessedBitmap)
+                if (whitelist.isNotEmpty()) {
+                    tessBaseAPI.setVariable(TessBaseAPI.VAR_CHAR_WHITELIST, whitelist)
+                }
+                filterText(tessBaseAPI.utF8Text)
+            }
+
+            // Возвращаем результат
+            preprocessedText
         }
-        return filterText(tessBaseAPI.utF8Text)
     }
+
+
 
     private fun filterText(text: String): String {
         val unwantedSymbolsRegex = (
@@ -75,10 +92,11 @@ class TextRecognizer(private val context: Context) {
         return text.replace(unwantedSymbolsRegex, "").trim()
     }
 
-    private fun preprocessBitmap(bitmap: Bitmap): Bitmap {
-        val denoisedBitmap = applyFastMedianFilter(bitmap, 3)
-        val bwBitmap = convertToBlackWhite(denoisedBitmap)
-        return enhanceContrast(bwBitmap)
+    private suspend fun preprocessBitmap(bitmap: Bitmap): Bitmap = coroutineScope {
+        val denoisedBitmap = async(Dispatchers.Default) { applyFastMedianFilter(bitmap, 3) }
+        val bwBitmap = async(Dispatchers.Default) { convertToBlackWhite(denoisedBitmap.await()) }
+        val enhancedBitmap = async(Dispatchers.Default) { enhanceContrast(bwBitmap.await()) }
+        enhancedBitmap.await()
     }
 
     private fun applyFastMedianFilter(bitmap: Bitmap, windowSize: Int): Bitmap {
