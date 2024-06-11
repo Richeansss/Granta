@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
 
                 calendarGrid.findViewWithTag<Button>(buttonTag)?.let { button ->
                     if (savedOption != null) {
-                        button.text = savedOption
+                        button.text = "$dayOfMonth\n$savedOption"
                         button.background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
                             setColor(savedColor)
@@ -167,6 +167,14 @@ class MainActivity : AppCompatActivity() {
                                 else -> Color.WHITE
                             }
                         )
+                    } else {
+                        // Если сохраненной опции нет, просто устанавливаем день месяца
+                        button.text = dayOfMonth.toString()
+                        button.background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(Color.parseColor("#d1d1d1")) // Цвет фона для остальных дней
+                        }
+                        button.setTextColor(Color.parseColor("#333333"))
                     }
                 }
             }
@@ -291,7 +299,7 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
-        button.text = text
+        button.text = "$dayOfMonth\n$text"
         button.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(color)
