@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
 
                 calendarGrid.findViewWithTag<Button>(buttonTag)?.let { button ->
                     if (savedOption != null) {
-                        button.text = "$dayOfMonth\n$savedOption"
+                        button.text = "$dayOfMonth$savedOption"
                         button.background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
                             setColor(savedColor)
