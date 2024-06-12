@@ -26,6 +26,15 @@ import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
+    private companion object {
+        val COLOR_CURRENT_DAY = Color.parseColor("#F27BBD")
+        val COLOR_OTHER_DAY = Color.parseColor("#d1d1d1")
+        val COLOR_OPTION_1 = Color.parseColor("#161b33")
+        val COLOR_OPTION_2 = Color.parseColor("#ffc43d")
+        val COLOR_OPTION_3 = Color.parseColor("#023E8A")
+    }
+
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var sharedPreferences: SharedPreferences
     private var sumHour: Int = 0
@@ -144,7 +153,7 @@ class MainActivity : AppCompatActivity() {
     private fun changeMonth(amount: Int) {
         currentDate = currentDate.plusMonths(amount.toLong())
 
-        // Загрузка кол-ва денег за 24 часа сдледующего месяца
+        // Загрузка кол-ва денег за 24 часа следующего месяца
         moneyPer24Hours = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_money_per_24_hours", 4000)
 
         updateCalendar()
@@ -172,13 +181,13 @@ class MainActivity : AppCompatActivity() {
                         val screenHeight = displayMetrics.heightPixels
                         val buttonSize = minOf(screenWidth, screenHeight) / 45 // Например, размер шрифта 1/45 ширины экрана
 
-                        val dayTextSize = buttonSize * 1.2f // Размер шрифта для числа дня
-                        val optionTextSize = buttonSize * 0.8f // Размер шрифта для сохраненной опции
+                        val dayTextSize = buttonSize * 1.4f // Размер шрифта для числа дня
+                        val optionTextSize = buttonSize * 1f // Размер шрифта для сохраненной опции
 
                         // Устанавливаем текст кнопки с учетом размера шрифта
                         button.text = SpannableStringBuilder().apply {
                             append(dayText)
-                            append("\n")
+                            append(" | ")
                             append(optionText)
                             setSpan(AbsoluteSizeSpan(dayTextSize.toInt()), 0, dayText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                             setSpan(AbsoluteSizeSpan(optionTextSize.toInt()), dayText.length, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -223,18 +232,18 @@ class MainActivity : AppCompatActivity() {
             .create()
 
         dialogView.findViewById<Button>(R.id.option_1).setOnClickListener {
-            updateButton(dayOfMonth, button, "12н", Color.parseColor("#161b33"))
+            updateButton(dayOfMonth, button, "12н", COLOR_OPTION_1)
             dialog.dismiss()
         }
 
         dialogView.findViewById<Button>(R.id.option_2).setOnClickListener {
-            updateButton(dayOfMonth, button, "12д", Color.parseColor("#ffc43d"))
+            updateButton(dayOfMonth, button, "12д", COLOR_OPTION_2)
             button.setTextColor(Color.parseColor("#333333"))
             dialog.dismiss()
         }
 
         dialogView.findViewById<Button>(R.id.option_3).setOnClickListener {
-            updateButton(dayOfMonth, button, "24", Color.parseColor("#023E8A"))
+            updateButton(dayOfMonth, button, "24", COLOR_OPTION_3)
             dialog.dismiss()
         }
 
@@ -299,10 +308,9 @@ class MainActivity : AppCompatActivity() {
 
         // Цвет фона кнопки
         val backgroundColor = if (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
-            Color.parseColor("#F27BBD") // Цвет для текущего дня
-
+            COLOR_CURRENT_DAY // Цвет для текущего дня
         } else {
-            Color.parseColor("#d1d1d1") // Цвет для остальных дней
+            COLOR_OTHER_DAY // Цвет для остальных дней
         }
 
         Log.d("Debug", "Button background color: $backgroundColor")
@@ -348,17 +356,18 @@ class MainActivity : AppCompatActivity() {
         val screenHeight = displayMetrics.heightPixels
         val buttonSize = minOf(screenWidth, screenHeight) / 45 // Размер кнопки, например, 1/50 ширины экрана
 
-        val dayTextSize = buttonSize * 1.2f // Размер шрифта для числа дня
-        val optionTextSize = buttonSize * 0.8f // Размер шрифта для времени
+        val dayTextSize = buttonSize * 1.4f // Размер шрифта для числа дня
+        val optionTextSize = buttonSize * 1f // Размер шрифта для времени
 
         // Обновление текста кнопки с учетом размера шрифта
         button.text = SpannableStringBuilder().apply {
             append(dayText)
-            append("\n")
+            append(" ")
             append(optionText)
             setSpan(AbsoluteSizeSpan(dayTextSize.toInt()), 0, dayText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             setSpan(AbsoluteSizeSpan(optionTextSize.toInt()), dayText.length, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+
 
         // Обновление цвета фона кнопки
         button.background = GradientDrawable().apply {
