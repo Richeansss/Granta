@@ -8,6 +8,9 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.AbsoluteSizeSpan
 import android.util.DisplayMetrics
 import android.util.Log
 import android.widget.*
@@ -62,6 +65,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateCalendar() {
+        // Загрузка данных о суммах часов и денег перед обновлением календаря
+        sumHour = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", 0)
+        sumMoney = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_money", 0)
+
         with(binding) {
             currentMonthTextView.text = currentDate.month.getDisplayName(TextStyle.FULL, Locale("ru")) + " " + currentDate.year
             val calendarGrid = calendarGrid
@@ -72,8 +79,10 @@ class MainActivity : AppCompatActivity() {
             val screenWidth = displayMetrics.widthPixels
 
             val buttonsPerRow = 7
-            val buttonSize = (screenWidth / buttonsPerRow) - 30
-            val buttonMargin = 8
+            val buttonMargin = 11 // Маржа кнопок в dp
+
+            // Рассчитываем размер кнопок на основе ширины экрана и количества кнопок в строке
+            val buttonSize = ((screenWidth - (buttonsPerRow + 1) * convertDpToPixel(buttonMargin.toFloat(), this@MainActivity)) / buttonsPerRow).toInt()
 
             val firstDayOfMonth = LocalDate.of(currentDate.year, currentDate.month, 1)
             val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
@@ -83,14 +92,13 @@ class MainActivity : AppCompatActivity() {
             addDayButtons(calendarGrid, buttonSize, buttonMargin)
 
             restoreButtonValues()
-
-            sumHour = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_hour", 0)
-            sumMoney = sharedPreferences.getInt("${currentDate.year}_${currentDate.monthValue}_sum_money", 0)
-
-            sumHourTextView.text = sumHour.toString()
-            sumMoneyTextView.text = sumMoney.toString()
         }
+
+        // Обновление TextView после восстановления значений кнопок
+        binding.sumHourTextView.text = sumHour.toString()
+        binding.sumMoneyTextView.text = sumMoney.toString()
     }
+
 
     private fun addDayOfWeekHeaders(grid: GridLayout, buttonSize: Int, buttonMargin: Int) {
         val daysOfWeek = DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Locale("ru")) }
@@ -98,7 +106,7 @@ class MainActivity : AppCompatActivity() {
             val dayTextView = TextView(this).apply {
                 text = dayOfWeek
                 setTextColor(Color.BLACK)
-                textSize = 22f
+                textSize = 14f // размер текста в sp
                 textAlignment = TextView.TEXT_ALIGNMENT_CENTER
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = buttonSize
@@ -153,13 +161,34 @@ class MainActivity : AppCompatActivity() {
 
                 calendarGrid.findViewWithTag<Button>(buttonTag)?.let { button ->
                     if (savedOption != null) {
-                        button.text = "$dayOfMonth\n$savedOption"
+                        // Создаем два отдельных текстовых элемента для дня и сохраненной опции
+                        val dayText = "$dayOfMonth"
+                        val optionText = savedOption
+
+                        // Определение размера шрифта на основе размера экрана
+                        val displayMetrics = DisplayMetrics()
+                        windowManager.defaultDisplay.getMetrics(displayMetrics)
+                        val screenWidth = displayMetrics.widthPixels
+                        val screenHeight = displayMetrics.heightPixels
+                        val buttonSize = minOf(screenWidth, screenHeight) / 45 // Например, размер шрифта 1/45 ширины экрана
+
+                        val dayTextSize = buttonSize * 1.2f // Размер шрифта для числа дня
+                        val optionTextSize = buttonSize * 0.8f // Размер шрифта для сохраненной опции
+
+                        // Устанавливаем текст кнопки с учетом размера шрифта
+                        button.text = SpannableStringBuilder().apply {
+                            append(dayText)
+                            append("\n")
+                            append(optionText)
+                            setSpan(AbsoluteSizeSpan(dayTextSize.toInt()), 0, dayText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            setSpan(AbsoluteSizeSpan(optionTextSize.toInt()), dayText.length, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+
                         button.background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
                             setColor(savedColor)
                         }
 
-                        // Установка цвета текста в зависимости от значения savedOption
                         button.setTextColor(
                             when (savedOption) {
                                 "12н" -> Color.WHITE
@@ -168,11 +197,10 @@ class MainActivity : AppCompatActivity() {
                             }
                         )
                     } else {
-                        // Если сохраненной опции нет, просто устанавливаем день месяца
                         button.text = dayOfMonth.toString()
                         button.background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
-                            setColor(Color.parseColor("#d1d1d1")) // Цвет фона для остальных дней
+                            setColor(Color.parseColor("#d1d1d1"))
                         }
                         button.setTextColor(Color.parseColor("#333333"))
                     }
@@ -182,7 +210,12 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun showOptionsDialog(dayOfMonth: Int, button: Button) {
+    private fun convertDpToPixel(dp: Float, context: Context): Float {
+        return dp * (context.resources.displayMetrics.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT)
+    }
+
+
+    private fun showOptionsDialog(dayOfMonth: Int, displayedMonth: Int, displayedYear: Int, button: Button) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_custom_layout, null)
 
         val dialog = AlertDialog.Builder(this)
@@ -206,7 +239,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialogView.findViewById<Button>(R.id.clear_button).setOnClickListener {
-            clearButton(dayOfMonth, button)
+            clearButton(dayOfMonth, displayedMonth, displayedYear,  button)
             dialog.dismiss()
         }
 
@@ -217,13 +250,15 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun clearButton(dayOfMonth: Int, button: Button) {
+    private fun clearButton(dayOfMonth: Int, displayedMonth: Int, displayedYear: Int, button: Button) {
         // Определение текущей даты
         val calendar = Calendar.getInstance()
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
 
         // Цвет и форматирование текста для текущего дня
-        if (dayOfMonth == currentDay) {
+        if  (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
             button.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#F27BBD")) // Цвет фона для текущего дня
@@ -265,15 +300,19 @@ class MainActivity : AppCompatActivity() {
         // Цвет фона кнопки
         val backgroundColor = if (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
             Color.parseColor("#F27BBD") // Цвет для текущего дня
+
         } else {
             Color.parseColor("#d1d1d1") // Цвет для остальных дней
         }
+
+        Log.d("Debug", "Button background color: $backgroundColor")
+
 
         // Увеличение размера кнопки, если это текущий день
         if (dayOfMonth == currentDay && displayedMonth == currentMonth && displayedYear == currentYear) {
             button.scaleX = 1.1f
             button.scaleY = 1.1f
-            button.textSize = 20f
+            button.textSize = 16f // размер текста в sp
             button.setTypeface(button.typeface, Typeface.BOLD)
         }
 
@@ -292,19 +331,42 @@ class MainActivity : AppCompatActivity() {
         button.layoutParams = buttonParams
 
         button.setOnClickListener {
-            showOptionsDialog(dayOfMonth, button)
+            showOptionsDialog(dayOfMonth, displayedMonth, displayedYear,  button)
         }
         return button
     }
 
 
     private fun updateButton(dayOfMonth: Int, button: Button, text: String, color: Int) {
-        button.text = "$dayOfMonth\n$text"
+        val dayText = "$dayOfMonth"
+        val optionText = text
+
+        // Определение размера шрифта для числа дня и времени на основе размера кнопки
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        val buttonSize = minOf(screenWidth, screenHeight) / 45 // Размер кнопки, например, 1/50 ширины экрана
+
+        val dayTextSize = buttonSize * 1.2f // Размер шрифта для числа дня
+        val optionTextSize = buttonSize * 0.8f // Размер шрифта для времени
+
+        // Обновление текста кнопки с учетом размера шрифта
+        button.text = SpannableStringBuilder().apply {
+            append(dayText)
+            append("\n")
+            append(optionText)
+            setSpan(AbsoluteSizeSpan(dayTextSize.toInt()), 0, dayText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(AbsoluteSizeSpan(optionTextSize.toInt()), dayText.length, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+        // Обновление цвета фона кнопки
         button.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(color)
         }
 
+        // Обновление цвета текста кнопки
         button.setTextColor(
             when (text) {
                 "12н" -> Color.WHITE
@@ -313,9 +375,17 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
+        // Сохранение данных в SharedPreferences
         saveDayInSharedPreferences(dayOfMonth, text, color)
+
+        // Обновление суммы часов и денег
         updateSumHourAndMoney()
+
+        // Исправление размеров кнопки
+        button.requestLayout()
     }
+
+
 
     private fun showSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_settings, null)
