@@ -6,6 +6,8 @@
                 android:background="@color/mainBackGround"
                 tools:context=".MainActivity">
 
+
+
     <LinearLayout
             android:id="@+id/monthNavigationLayout"
             android:layout_width="match_parent"
