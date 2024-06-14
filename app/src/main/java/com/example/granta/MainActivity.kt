@@ -85,13 +85,13 @@ class MainActivity : AppCompatActivity() {
 
             val displayMetrics = DisplayMetrics()
             windowManager.defaultDisplay.getMetrics(displayMetrics)
-            val screenWidth = displayMetrics.widthPixels
+            val smallestScreenDimension = minOf(displayMetrics.widthPixels, displayMetrics.heightPixels)
 
             val buttonsPerRow = 7
             val buttonMargin = 11 // Маржа кнопок в dp
 
-            // Рассчитываем размер кнопок на основе ширины экрана и количества кнопок в строке
-            val buttonSize = ((screenWidth - (buttonsPerRow + 1) * convertDpToPixel(buttonMargin.toFloat(), this@MainActivity)) / buttonsPerRow).toInt()
+            // Рассчитываем размер кнопок на основе наименьшего размера экрана и количества кнопок в строке
+            val buttonSize = ((smallestScreenDimension - (buttonsPerRow + 1) * convertDpToPixel(buttonMargin.toFloat(), this@MainActivity)) / buttonsPerRow).toInt()
 
             val firstDayOfMonth = LocalDate.of(currentDate.year, currentDate.month, 1)
             val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
@@ -362,7 +362,7 @@ class MainActivity : AppCompatActivity() {
         // Обновление текста кнопки с учетом размера шрифта
         button.text = SpannableStringBuilder().apply {
             append(dayText)
-            append(" ")
+            append(" | ")
             append(optionText)
             setSpan(AbsoluteSizeSpan(dayTextSize.toInt()), 0, dayText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             setSpan(AbsoluteSizeSpan(optionTextSize.toInt()), dayText.length, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
