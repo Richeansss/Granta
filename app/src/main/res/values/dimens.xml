@@ -5,4 +5,5 @@
 
     <!-- Отступы кнопок -->
     <dimen name="button_margin">50dp</dimen>
+
 </resources>

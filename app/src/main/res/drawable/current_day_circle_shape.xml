@@ -1,0 +1,5 @@
+<!-- current_day_circle_shape.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#F27BBD"/>
+    <corners android:radius="50dp"/>
+</shape>
